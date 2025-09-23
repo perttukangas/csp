@@ -1,0 +1,69 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi[standard]>=0.117.1",
+    "pydantic-settings>=2.10.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "ruff>=0.13.1",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = [
+    ".git",
+    ".hg",
+    ".svn",
+    ".bzr",
+    ".vscode",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".pytype",
+    ".nox",
+    ".tox",
+    ".pants.d",
+    ".eggs",
+    "__pycache__",
+    ".ipynb_checkpoints",
+    ".pyenv",
+    ".venv",
+    "venv",
+    "__pypackages__",
+    "site-packages",
+    "build",
+    "dist",
+    "_build",
+    "buck-out",
+    "*.egg-info",
+    "node_modules",
+    "Dockerfile",
+    "Dockerfile.*",
+    "uv.lock",
+    "pyproject.toml"
+]
+
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "UP", "C90"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+
