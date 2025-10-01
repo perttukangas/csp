@@ -1,0 +1,3 @@
+url,links,title
+https://example.com,['https://www.iana.org/domains/example'],['Example Domain']
+https://www.iana.org/domains/example,"['/', '/domains', '/protocols', '/numbers', '/about', '/go/rfc2606', '/go/rfc6761', '/domains/reserved', '/domains', '/domains/root', '/domains/int', '/domains/arpa', '/domains/idn-tables', '/numbers', '/abuse', '/protocols', '/protocols', '/time-zones', '/about', '/news', '/performance', '/about/excellence', '/archive', '/contact', 'https://pti.icann.org', 'http://www.icann.org/', 'https://www.icann.org/privacy/policy', 'https://www.icann.org/privacy/tos']",['Example Domains']
