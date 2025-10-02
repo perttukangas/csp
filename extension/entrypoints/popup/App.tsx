@@ -7,6 +7,7 @@ import { browser } from 'wxt/browser';
 function App() {
   const [isTrackingEnabled, setIsTrackingEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [prompt, setPrompt] = useState('');
 
   // Load settings and current URL on component mount
   useEffect(() => {
@@ -14,6 +15,8 @@ function App() {
       try {
         // Load tracking setting from storage
         const result = await browser.storage.sync.get(['urlTrackingEnabled']);
+        const propmtResult = await browser.storage.sync.get(['prompt']);
+        setPrompt(propmtResult.prompt || '');
         setIsTrackingEnabled(result.urlTrackingEnabled || false);
       } catch (error) {
         console.error('Failed to load data:', error);
@@ -42,6 +45,17 @@ function App() {
     }
   };
 
+  const handlePromptChange = async (newPrompt: string) => {
+    try {
+      setPrompt(newPrompt);
+      // Should debounce probably. Leave for later.
+      await browser.storage.sync.set({ prompt: newPrompt });
+      console.log('Prompt updated:', newPrompt);
+    } catch (error) {
+      console.error('Failed to update prompt:', error);
+    }
+  };
+
   if (isLoading) {
     return <div style={{ padding: '20px' }}>Loading...</div>;
   }
@@ -56,10 +70,28 @@ function App() {
           <img src={reactLogo} className="logo react" alt="React logo" />
         </a>
       </div>
-      <h1>URL Tracker</h1>
+      <h1>Web ScrAIper</h1>
 
       {/* URL Tracking Toggle */}
-      <div className="card">
+      <div
+        className="card"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          marginTop: '20px',
+        }}
+      >
+        <div>
+          <label htmlFor="prompt">Prompt:</label>
+          <textarea
+            id="prompt"
+            name="prompt"
+            value={prompt}
+            onChange={async e => await handlePromptChange(e.target.value)}
+          />
+        </div>
+
         <div style={{ marginBottom: '20px' }}>
           <label
             style={{

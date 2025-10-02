@@ -1,4 +1,14 @@
 export class BackgroundService {
+  async getPropmpt() {
+    try {
+      const result = await browser.storage.sync.get(['prompt']);
+      return result.prompt || '';
+    } catch (error) {
+      console.error('Failed to get prompt:', error);
+      return undefined;
+    }
+  }
+
   async isTrackingEnabled(): Promise<boolean> {
     try {
       const result = await browser.storage.sync.get(['urlTrackingEnabled']);
@@ -7,6 +17,13 @@ export class BackgroundService {
       console.error('Failed to check tracking status:', error);
       return false;
     }
+  }
+
+  async getSessionId(): Promise<void> {
+    /**
+     * TODO: Probably we will need it to avoid repeated sending of prompt
+     * and to somehow accumulate context.
+     */
   }
 
   async sendUrlToServer(url: string, tabId?: number) {
@@ -18,6 +35,7 @@ export class BackgroundService {
 
     console.log('📤 Sending URL to server (tracking enabled):', url);
     try {
+      const propmt = await this.getPropmpt();
       // TODO: Change to actual url. I have had troubles with
       // our local server.
       const response = await fetch('http://localhost:8000/api/test', {
@@ -29,6 +47,7 @@ export class BackgroundService {
           url,
           tabId,
           timestamp: Date.now(),
+          prompt: propmt,
         }),
       });
 

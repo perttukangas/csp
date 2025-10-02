@@ -3,11 +3,11 @@ export default defineContentScript({
   main() {
     console.log('Content script loaded on:', window.location.href);
 
-    // Function to handle URL changes
     const handleUrlChange = async (url: string) => {
       console.log('URL changed to:', url);
 
       // Send message to background script to handle the request
+      // In content.ts CORS/ Networking errors occur
       try {
         console.log('Sending message to background script:', {
           type: 'URL_CHANGED',
@@ -73,7 +73,6 @@ export default defineContentScript({
       handleUrlChange(newUrl);
     };
 
-    // Method 3: Listen for popstate events (back/forward)
     window.addEventListener('popstate', () => {
       // For popstate, we do need setTimeout because the URL change happens asynchronously
       setTimeout(() => handleUrlChange(window.location.href), 0);
