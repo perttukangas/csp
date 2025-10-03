@@ -1,13 +1,32 @@
 import { useState, useEffect } from 'react';
-import reactLogo from '@/assets/react.svg';
-import wxtLogo from '/wxt.svg';
 import './App.css';
 import { browser } from 'wxt/browser';
+import ResponsesList from './ResponsesList';
 
 function App() {
   const [isTrackingEnabled, setIsTrackingEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [prompt, setPrompt] = useState('');
+  const [activeTab, setActiveTab] = useState<'controls' | 'responses'>('controls');
+  const [pendingValidations, setPendingValidations] = useState(0);
+
+  // Load pending validations count
+  const loadPendingValidations = async () => {
+    try {
+      const result = await browser.runtime.sendMessage({
+        type: 'GET_RESPONSES',
+      });
+
+      if (result.success) {
+        const pendingCount = (result.responses || []).filter(
+          (r: any) => r.validationStatus === 'pending'
+        ).length;
+        setPendingValidations(pendingCount);
+      }
+    } catch (error) {
+      console.error('Failed to load pending validations:', error);
+    }
+  };
 
   // Load settings and current URL on component mount
   useEffect(() => {
@@ -18,6 +37,9 @@ function App() {
         const propmtResult = await browser.storage.sync.get(['prompt']);
         setPrompt(propmtResult.prompt || '');
         setIsTrackingEnabled(result.urlTrackingEnabled || false);
+
+        // Load pending validations
+        await loadPendingValidations();
       } catch (error) {
         console.error('Failed to load data:', error);
       } finally {
@@ -57,70 +79,78 @@ function App() {
   };
 
   if (isLoading) {
-    return <div style={{ padding: '20px' }}>Loading...</div>;
+    return <div className="loading-state">Loading...</div>;
   }
 
   return (
     <>
-      <div>
-        <a href="https://wxt.dev" target="_blank">
-          <img src={wxtLogo} className="logo" alt="WXT logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
       <h1>Web ScrAIper</h1>
 
-      {/* URL Tracking Toggle */}
-      <div
-        className="card"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-          marginTop: '20px',
-        }}
-      >
-        <div>
-          <label htmlFor="prompt">Prompt:</label>
-          <textarea
-            id="prompt"
-            name="prompt"
-            value={prompt}
-            onChange={async e => await handlePromptChange(e.target.value)}
-          />
-        </div>
+      {/* Tab Navigation */}
+      <div className="tab-navigation">
+        <button
+          className={`tab-button ${activeTab === 'controls' ? 'active' : ''}`}
+          onClick={() => setActiveTab('controls')}
+        >
+          Controls
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'responses' ? 'active' : ''}`}
+          onClick={() => setActiveTab('responses')}
+        >
+          Responses
+          {pendingValidations > 0 && (
+            <span className="badge">
+              {pendingValidations}
+            </span>
+          )}
+        </button>
+      </div>
 
-        <div style={{ marginBottom: '20px' }}>
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              cursor: 'pointer',
-            }}
+      {/* Controls Tab */}
+      {activeTab === 'controls' && (
+        <div className="tab-content">
+          <div>
+            <label htmlFor="prompt">Prompt:</label>
+            <textarea
+              id="prompt"
+              name="prompt"
+              value={prompt}
+              placeholder="Enter your AI prompt for scraping pages..."
+              onChange={async e => await handlePromptChange(e.target.value)}
+            />
+          </div>
+
+          <div
+            className="checkbox-container"
+            onClick={() => handleToggleTracking(!isTrackingEnabled)}
           >
             <input
               type="checkbox"
               checked={isTrackingEnabled}
               onChange={e => handleToggleTracking(e.target.checked)}
-              style={{ transform: 'scale(1.2)' }}
+              onClick={e => e.stopPropagation()} // Prevent container click when clicking checkbox
             />
-            <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
+            <span className={`status-text ${isTrackingEnabled ? 'enabled' : 'disabled'}`}>
               {isTrackingEnabled
                 ? '🟢 URL Tracking Enabled'
                 : '🔴 URL Tracking Disabled'}
             </span>
-          </label>
-        </div>
+          </div>
 
-        <div style={{ fontSize: '14px', color: '#666' }}>
-          {isTrackingEnabled
-            ? '✅ We are now scraping data from the pages you are visiting'
-            : '❌ URL tracking is paused'}
+          <div className={`status-description ${isTrackingEnabled ? 'enabled' : 'disabled'}`}>
+            {isTrackingEnabled
+              ? '✅ We are now scraping data from the pages you are visiting'
+              : '❌ URL tracking is paused'}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Responses Tab */}
+      <ResponsesList
+        isVisible={activeTab === 'responses'}
+        onValidationUpdate={loadPendingValidations}
+      />
     </>
   );
 }

@@ -5,7 +5,10 @@ export default defineBackground({
   main() {
     const backgroundService = new BackgroundService();
 
-    browser.runtime.onMessage.addListener(backgroundService.handleMessage);
+    // Bind the handleMessage method properly to maintain 'this' context
+    browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      return backgroundService.handleMessage(message, sender, sendResponse);
+    });
 
     // Listen for tab updates (URL changes)
     browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
