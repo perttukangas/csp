@@ -1,4 +1,45 @@
 
+# AI Web Scraper Backend
+
+FastAPI-based backend service that uses Google Gemini AI to generate intelligent web scraping selectors.
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Python 3.11+
+- Google Gemini API Key
+
+### Manual Setup
+```bash
+# Navigate to backend directory
+cd backend
+
+# Create virtual environment
+python -m venv .venv
+
+# Activate virtual environment  
+# Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+# Git Bash on Windows:
+source .venv/Scripts/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Edit .env and add your GEMINI_API_KEY
+
+# Start server (make sure you're in backend directory)
+python -m uvicorn app.main:app --reload
+```
+
+## 🧪 Testing
+
+```bash
+# Run integration tests in another terminal
+python backend/test_gemini_agent.py
+
+```
+
 ## 🛠️ Development
 
 ### Dev Container 🐳
