@@ -30,10 +30,15 @@ The agent can submit jobs specifying:
 
 ## Requirements
 
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) installed
+
+## Installation
+
 Install dependencies:
 
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 You also need **Redis** installed and running:
@@ -62,13 +67,13 @@ redis-server
 2. **Start the worker** (listens for jobs in the queue):
 
    ```bash
-   python worker.py
+   uv run python worker.py
    ```
 
 3. **Start the API server** (for submitting jobs):
 
    ```bash
-   uvicorn api:app --reload --port 8000
+   uv run uvicorn scraper_service:app --reload --port 8000
    ```
 
 4. **Submit a scrape job** with `curl` or an agent:
@@ -125,6 +130,6 @@ c28c6ff1-17c1-41b0-9b3a-7b4e420e5d0b,https://www.iana.org/domains/example,"IANA 
 * For parallel scraping, you can run multiple workers:
 
   ```bash
-  python worker.py &
-  python worker.py &
+  uv run python worker.py &
+  uv run python worker.py &
   ```

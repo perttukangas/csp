@@ -1,8 +1,0 @@
-services:
-  backend:
-    build:
-      context: ../..
-      dockerfile: .devcontainer/backend/Dockerfile.dev
-    volumes:
-      - ../../backend:/backend
-    tty: true

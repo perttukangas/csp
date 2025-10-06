@@ -1,4 +1,4 @@
-# WXT + React
+# Extension (frontend)
 
 ## Requirements
 
@@ -6,8 +6,8 @@
 
 ## Installation
 
-- npm install
+- `npm install`
 
 ## Start in dev mode
 
-- npm run dev
+- `npm run dev`
