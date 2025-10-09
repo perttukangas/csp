@@ -275,6 +275,20 @@ button {
   color: #f0f6fc;
 }
 
+.bulk-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.bulk-actions button {
+  font-size: 12px;
+  padding: 8px 16px;
+  min-width: auto;
+}
+
 .responses-container {
   max-height: 400px;
   overflow-y: auto;
@@ -463,4 +477,57 @@ button {
   padding: 40px 20px;
   color: #7d8590;
   font-size: 14px;
+}
+
+/* Send section */
+.send-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #30363d;
+}
+
+.send-button {
+  width: 100%;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #238636 0%, #196127 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.send-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2ea043 0%, #238636 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);
+}
+
+.send-button:disabled {
+  background: #30363d;
+  color: #7d8590;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.send-info {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.validated-count {
+  color: #7ea85b;
+  font-weight: 500;
+}
+
+.no-validated {
+  color: #7d8590;
 }

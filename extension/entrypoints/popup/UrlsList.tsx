@@ -2,25 +2,22 @@ import { useState, useEffect } from 'react';
 import { browser } from 'wxt/browser';
 
 interface ScrapeResponse {
-  id: string;
   url: string;
-  prompt: string;
-  response: string;
-  timestamp: number;
-  status: 'completed' | 'failed';
   validationStatus?: 'pending' | 'validated' | 'invalid';
 }
 
-interface ResponsesListProps {
+interface UrlsListProps {
   isVisible: boolean;
   onValidationUpdate?: () => void;
 }
 
-function ResponsesList({ isVisible, onValidationUpdate }: ResponsesListProps) {
+function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
   const [responses, setResponses] = useState<ScrapeResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const [validatingIds, setValidatingIds] = useState<Set<string>>(new Set());
+  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+  const [isValidatingAll, setIsValidatingAll] = useState(false);
+  const [isRemovingAll, setIsRemovingAll] = useState(false);
 
   const loadResponses = async () => {
     if (!isVisible) return;
@@ -43,20 +40,20 @@ function ResponsesList({ isVisible, onValidationUpdate }: ResponsesListProps) {
     }
   };
 
-  const handleUpdateValidation = async (responseId: string, validationStatus: 'validated' | 'invalid') => {
-    setValidatingIds(prev => new Set(prev).add(responseId));
+  const handleUpdateValidation = async (responseUrl: string, validationStatus: 'validated' | 'invalid') => {
+    setValidatingIds(prev => new Set(prev).add(responseUrl));
 
     try {
       const result = await browser.runtime.sendMessage({
         type: 'UPDATE_VALIDATION',
-        responseId,
+        responseUrl,
         validationStatus,
       });
 
       if (result.success) {
         // Update local state immediately
         setResponses(prev => prev.map(r =>
-          r.id === responseId
+          r.url === responseUrl
             ? { ...r, validationStatus }
             : r
         ));
@@ -65,53 +62,103 @@ function ResponsesList({ isVisible, onValidationUpdate }: ResponsesListProps) {
         onValidationUpdate?.();
       } else {
         console.error('Failed to update validation:', result.error);
-        alert('Failed to update validation. Please try again.');
       }
     } catch (error) {
       console.error('Failed to update validation:', error);
-      alert('Failed to update validation. Please try again.');
     } finally {
       setValidatingIds(prev => {
         const newSet = new Set(prev);
-        newSet.delete(responseId);
+        newSet.delete(responseUrl);
         return newSet;
       });
     }
   };
 
-  const handleRemoveResponse = async (responseId: string) => {
-    setRemovingIds(prev => new Set(prev).add(responseId));
+  const handleRemoveResponse = async (responseUrl: string) => {
+    setRemovingIds(prev => new Set(prev).add(responseUrl));
 
     try {
       const result = await browser.runtime.sendMessage({
         type: 'REMOVE_RESPONSE',
-        responseId,
+        responseUrl,
       });
 
       if (result.success) {
         // Remove from local state immediately
-        setResponses(prev => prev.filter(r => r.id !== responseId));
-        // Notify parent to update badge count
+        setResponses(prev => prev.filter(r => r.url !== responseUrl));
+
+        // Notify parent of update
         onValidationUpdate?.();
       } else {
         console.error('Failed to remove response:', result.error);
-        alert('Failed to remove response. Please try again.');
       }
     } catch (error) {
       console.error('Failed to remove response:', error);
-      alert('Failed to remove response. Please try again.');
     } finally {
       setRemovingIds(prev => {
         const newSet = new Set(prev);
-        newSet.delete(responseId);
+        newSet.delete(responseUrl);
         return newSet;
       });
     }
   };
 
-  useEffect(() => {
-    loadResponses();
-  }, [isVisible]);
+  const handleValidateAll = async () => {
+    const pendingResponses = responses.filter(r => r.validationStatus === 'pending');
+    if (pendingResponses.length === 0) return;
+
+    setIsValidatingAll(true);
+
+    try {
+      const result = await browser.runtime.sendMessage({
+        type: 'VALIDATE_ALL_PENDING',
+      });
+
+      if (result.success) {
+        // Update local state to mark all pending responses as validated
+        setResponses(prev => prev.map(r =>
+          r.validationStatus === 'pending'
+            ? { ...r, validationStatus: 'validated' as const }
+            : r
+        ));
+
+        // Notify parent of update
+        onValidationUpdate?.();
+      } else {
+        console.error('Failed to validate all responses:', result.error);
+      }
+    } catch (error) {
+      console.error('Failed to validate all responses:', error);
+    } finally {
+      setIsValidatingAll(false);
+    }
+  };
+
+  const handleRemoveAll = async () => {
+    if (responses.length === 0) return;
+
+    setIsRemovingAll(true);
+
+    try {
+      const result = await browser.runtime.sendMessage({
+        type: 'REMOVE_ALL_RESPONSES',
+      });
+
+      if (result.success) {
+        // Clear all responses from local state
+        setResponses([]);
+
+        // Notify parent of update
+        onValidationUpdate?.();
+      } else {
+        console.error('Failed to remove all responses:', result.error);
+      }
+    } catch (error) {
+      console.error('Failed to remove all responses:', error);
+    } finally {
+      setIsRemovingAll(false);
+    }
+  };
 
   // Auto-refresh when tab becomes visible or every 30 seconds when visible
   useEffect(() => {
@@ -142,15 +189,6 @@ function ResponsesList({ isVisible, onValidationUpdate }: ResponsesListProps) {
     }
   };
 
-  const formatTimestamp = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  };
-
-  const truncateText = (text: string, maxLength: number = 100) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-  };
-
   const truncateUrl = (url: string, maxLength: number = 50) => {
     if (url.length <= maxLength) return url;
     return '...' + url.substring(url.length - maxLength + 3);
@@ -167,42 +205,46 @@ function ResponsesList({ isVisible, onValidationUpdate }: ResponsesListProps) {
   return (
     <div className="tab-content">
       <div className="responses-header">
-        <h3>Stored Responses</h3>
+        {responses.length > 0 && (
+          <div className="bulk-actions">
+            <button
+              className="btn-primary"
+              onClick={handleValidateAll}
+              disabled={isValidatingAll || isRemovingAll || responses.filter(r => r.validationStatus === 'pending').length === 0}
+              title="Validate all pending URLs"
+            >
+              {isValidatingAll ? '⟳' : '✅'} Validate All
+            </button>
+            <button
+              className="btn-danger"
+              onClick={handleRemoveAll}
+              disabled={isValidatingAll || isRemovingAll}
+              title="Remove all URLs from storage"
+            >
+              {isRemovingAll ? '⟳' : '🗑️'} Remove All
+            </button>
+          </div>
+        )}
       </div>
 
       {isLoading && responses.length === 0 ? (
         <div className="loading-state">
-          Loading responses...
+          Loading URLs...
         </div>
       ) : responses.length === 0 ? (
         <div className="empty-state">
-          No responses stored yet. Visit some pages to see them here!
+          No URLs stored yet. Visit some pages to see them here!
         </div>
       ) : (
         <div className="responses-container">
           {responses.map(response => (
-            <div key={response.id} className="response-card">
+            <div key={response.url} className="response-card">
               <div className="response-header">
-                <div className="response-url">
+                <div className="response-url" title={response.url}>
                   {truncateUrl(response.url)}
                 </div>
                 <div className={`validation-${response.validationStatus || 'pending'}`}>
                   {getValidationStatusText(response.validationStatus)}
-                </div>
-              </div>
-
-              <div className="response-meta">
-                <div className="response-id">
-                  ID: {response.id.split('_').pop()}
-                </div>
-                <div className="response-timestamp">
-                  {formatTimestamp(response.timestamp)}
-                </div>
-              </div>
-
-              <div className="response-content">
-                <div className="response-text">
-                  {truncateText(response.response, 200)}
                 </div>
               </div>
 
@@ -211,26 +253,27 @@ function ResponsesList({ isVisible, onValidationUpdate }: ResponsesListProps) {
                   <>
                     <button
                       className="btn-primary"
-                      onClick={() => handleUpdateValidation(response.id, 'validated')}
-                      disabled={validatingIds.has(response.id)}
+                      onClick={() => handleUpdateValidation(response.url, 'validated')}
+                      disabled={validatingIds.has(response.url) || removingIds.has(response.url)}
                     >
-                      {validatingIds.has(response.id) ? '⟳' : '✅'} Valid
+                      {validatingIds.has(response.url) ? '⟳' : '✅'} Valid
                     </button>
                     <button
                       className="btn-warning"
-                      onClick={() => handleUpdateValidation(response.id, 'invalid')}
-                      disabled={validatingIds.has(response.id)}
+                      onClick={() => handleUpdateValidation(response.url, 'invalid')}
+                      disabled={validatingIds.has(response.url) || removingIds.has(response.url)}
                     >
-                      {validatingIds.has(response.id) ? '⟳' : '❌'} Invalid
+                      {validatingIds.has(response.url) ? '⟳' : '❌'} Invalid
                     </button>
                   </>
                 )}
                 <button
                   className="btn-danger"
-                  onClick={() => handleRemoveResponse(response.id)}
-                  disabled={removingIds.has(response.id)}
+                  onClick={() => handleRemoveResponse(response.url)}
+                  disabled={validatingIds.has(response.url) || removingIds.has(response.url)}
+                  title="Remove this URL from storage"
                 >
-                  {removingIds.has(response.id) ? '⟳' : '🗑️'} Remove
+                  {removingIds.has(response.url) ? '⟳' : '🗑️'} Remove
                 </button>
               </div>
             </div>
@@ -241,4 +284,4 @@ function ResponsesList({ isVisible, onValidationUpdate }: ResponsesListProps) {
   );
 }
 
-export default ResponsesList;
+export default UrlsList;

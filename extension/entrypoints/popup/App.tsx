@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 import { browser } from 'wxt/browser';
-import ResponsesList from './ResponsesList';
+import UrlsList from './UrlsList';
 
 function App() {
   const [isTrackingEnabled, setIsTrackingEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [prompt, setPrompt] = useState('');
-  const [activeTab, setActiveTab] = useState<'controls' | 'responses'>('controls');
+  const [activeTab, setActiveTab] = useState<'controls' | 'urls'>('controls');
   const [pendingValidations, setPendingValidations] = useState(0);
+  const [validatedCount, setValidatedCount] = useState(0);
+  const [isSending, setIsSending] = useState(false);
 
   // Load pending validations count
   const loadPendingValidations = async () => {
@@ -21,7 +23,11 @@ function App() {
         const pendingCount = (result.responses || []).filter(
           (r: any) => r.validationStatus === 'pending'
         ).length;
+        const validatedCount = (result.responses || []).filter(
+          (r: any) => r.validationStatus === 'validated'
+        ).length;
         setPendingValidations(pendingCount);
+        setValidatedCount(validatedCount);
       }
     } catch (error) {
       console.error('Failed to load pending validations:', error);
@@ -78,6 +84,36 @@ function App() {
     }
   };
 
+  const handleSendValidated = async () => {
+    if (validatedCount === 0) {
+      alert('No validated responses to send!');
+      return;
+    }
+
+    console.log('🚀 Sending SEND_VALIDATED message to background script');
+    setIsSending(true);
+    try {
+      const result = await browser.runtime.sendMessage({
+        type: 'SEND_VALIDATED',
+      });
+
+      console.log('📨 Received response from background script:', result);
+
+      if (result.success) {
+        alert(`Successfully sent ${result.sent} validated responses to server!`);
+        // Refresh the counts after sending
+        await loadPendingValidations();
+      } else {
+        alert(`Failed to send responses: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to send validated responses:', error);
+      alert('Failed to send responses. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="loading-state">Loading...</div>;
   }
@@ -95,10 +131,10 @@ function App() {
           Controls
         </button>
         <button
-          className={`tab-button ${activeTab === 'responses' ? 'active' : ''}`}
-          onClick={() => setActiveTab('responses')}
+          className={`tab-button ${activeTab === 'urls' ? 'active' : ''}`}
+          onClick={() => setActiveTab('urls')}
         >
-          Responses
+          URLs
           {pendingValidations > 0 && (
             <span className="badge">
               {pendingValidations}
@@ -138,17 +174,21 @@ function App() {
             </span>
           </div>
 
-          <div className={`status-description ${isTrackingEnabled ? 'enabled' : 'disabled'}`}>
-            {isTrackingEnabled
-              ? '✅ We are now scraping data from the pages you are visiting'
-              : '❌ URL tracking is paused'}
+          <div className="send-section">
+            <button
+              className="send-button"
+              onClick={handleSendValidated}
+              disabled={isSending || validatedCount === 0}
+            >
+              {isSending ? '⟳ Sending...' : `📤 Send ${validatedCount} URLs to processing`}
+            </button>
           </div>
         </div>
       )}
 
-      {/* Responses Tab */}
-      <ResponsesList
-        isVisible={activeTab === 'responses'}
+      {/* Urls Tab */}
+      <UrlsList
+        isVisible={activeTab === 'urls'}
         onValidationUpdate={loadPendingValidations}
       />
     </>

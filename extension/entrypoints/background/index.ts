@@ -15,7 +15,7 @@ export default defineBackground({
       // Only process when URL actually changes and is complete
       if (changeInfo.status === 'complete' && tab.url) {
         console.log('Tab URL changed:', tab.url);
-        backgroundService.sendUrlToServer(tab.url, tabId);
+        backgroundService.storeUrlForLater(tab.url, tabId);
       }
     });
 
@@ -25,7 +25,7 @@ export default defineBackground({
         const tab = await browser.tabs.get(activeInfo.tabId);
         if (tab.url) {
           console.log('Tab activated:', tab.url);
-          backgroundService.sendUrlToServer(tab.url, activeInfo.tabId);
+          backgroundService.storeUrlForLater(tab.url, activeInfo.tabId);
         }
       } catch (error) {
         console.error('Error getting active tab:', error);

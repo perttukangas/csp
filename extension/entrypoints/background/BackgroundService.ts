@@ -1,10 +1,5 @@
 interface ScrapeResponse {
-  id: string;
   url: string;
-  prompt: string;
-  response: string;
-  timestamp: number;
-  status: 'completed' | 'failed';
   validationStatus?: 'pending' | 'validated' | 'invalid';
 }
 
@@ -34,40 +29,22 @@ export class BackgroundService {
       const existingResponses = await this.getStoredResponses();
       const updatedResponses = [...existingResponses, response];
       await browser.storage.sync.set({ storedResponses: updatedResponses });
-      console.log('📦 Response stored successfully:', response.id);
+      console.log('📦 Response stored successfully:', response.url);
     } catch (error) {
       console.error('Failed to store response:', error);
     }
   }
 
-  async removeResponse(responseId: string): Promise<boolean> {
-    try {
-      // First try to delete from server
-      const deleteResult = await this.deleteResponseFromServer(responseId);
-
-      // Remove from local storage regardless of server response
-      const existingResponses = await this.getStoredResponses();
-      const updatedResponses = existingResponses.filter(r => r.id !== responseId);
-      await browser.storage.sync.set({ storedResponses: updatedResponses });
-
-      console.log('🗑️ Response removed successfully:', responseId);
-      return deleteResult.success;
-    } catch (error) {
-      console.error('Failed to remove response:', error);
-      return false;
-    }
-  }
-
-  async updateValidationStatus(responseId: string, validationStatus: 'validated' | 'invalid'): Promise<boolean> {
+  async updateValidationStatus(responseUrl: string, validationStatus: 'validated' | 'invalid'): Promise<boolean> {
     try {
       const existingResponses = await this.getStoredResponses();
       const updatedResponses = existingResponses.map(response =>
-        response.id === responseId
+        response.url === responseUrl
           ? { ...response, validationStatus }
           : response
       );
       await browser.storage.sync.set({ storedResponses: updatedResponses });
-      console.log('✅ Validation status updated successfully:', responseId, validationStatus);
+      console.log('✅ Validation status updated successfully:', responseUrl, validationStatus);
       return true;
     } catch (error) {
       console.error('Failed to update validation status:', error);
@@ -75,28 +52,44 @@ export class BackgroundService {
     }
   }
 
-  async deleteResponseFromServer(responseId: string) {
+  async removeResponse(responseUrl: string): Promise<boolean> {
     try {
-      const response = await fetch(`http://localhost:8000/api/test/${responseId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        console.log('✅ Response deleted from server successfully:', responseId);
-        return { success: true };
-      } else {
-        console.error('❌ Server returned error:', response.status);
-        return { success: false, error: `Server error: ${response.status}` };
-      }
+      const existingResponses = await this.getStoredResponses();
+      const updatedResponses = existingResponses.filter(response => response.url !== responseUrl);
+      await browser.storage.sync.set({ storedResponses: updatedResponses });
+      console.log('🗑️ Response removed successfully:', responseUrl);
+      return true;
     } catch (error) {
-      console.error('💥 Failed to delete response from server:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+      console.error('Failed to remove response:', error);
+      return false;
+    }
+  }
+
+  async removeAllResponses(): Promise<boolean> {
+    try {
+      await browser.storage.sync.set({ storedResponses: [] });
+      console.log('🗑️ All responses removed successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to remove all responses:', error);
+      return false;
+    }
+  }
+
+  async validateAllPendingResponses(): Promise<boolean> {
+    try {
+      const existingResponses = await this.getStoredResponses();
+      const updatedResponses = existingResponses.map(response =>
+        response.validationStatus === 'pending'
+          ? { ...response, validationStatus: 'validated' as const }
+          : response
+      );
+      await browser.storage.sync.set({ storedResponses: updatedResponses });
+      console.log('✅ All pending responses validated successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to validate all pending responses:', error);
+      return false;
     }
   }
 
@@ -110,64 +103,88 @@ export class BackgroundService {
     }
   }
 
-  async getSessionId(): Promise<void> {
-    /**
-     * TODO: Probably we will need it to avoid repeated sending of prompt
-     * and to somehow accumulate context.
-     */
-  }
-
-  async sendUrlToServer(url: string, tabId?: number) {
+  async storeUrlForLater(url: string, tabId?: number) {
     const trackingEnabled = await this.isTrackingEnabled();
     if (!trackingEnabled) {
       console.log('🚫 URL tracking disabled, skipping:', url);
       return { success: false, error: 'URL tracking is disabled' };
     }
 
-    console.log('📤 Sending URL to server (tracking enabled):', url);
+    console.log('📦 Storing URL for later batch sending:', url);
     try {
-      const propmt = await this.getPropmpt();
-      // TODO: Change to actual url. I have had troubles with
-      // our local server.
-      const response = await fetch('http://localhost:8000/api/test', {
+      // Check if URL already exists
+      const existingResponses = await this.getStoredResponses();
+      const urlExists = existingResponses.some(r => r.url === url);
+
+      if (urlExists) {
+        console.log('⚠️ URL already stored, skipping:', url);
+        return { success: true };
+      }
+
+      // Create a response entry for the URL without sending to server
+      const scrapeResponse: ScrapeResponse = {
+        url,
+        validationStatus: 'pending'
+      };
+
+      await this.storeResponse(scrapeResponse);
+      return { success: true };
+    } catch (error) {
+      console.error('💥 Failed to store URL:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  async sendValidatedResponsesToServer(): Promise<{ success: boolean; error?: string; sent?: number }> {
+    console.log('🚀 Starting sendValidatedResponsesToServer()');
+    try {
+      const responses = await this.getStoredResponses();
+      console.log('📦 Total stored responses:', responses.length);
+
+      const validatedResponses = responses.filter(r => r.validationStatus === 'validated');
+      console.log('✅ Validated responses found:', validatedResponses.length);
+
+      if (validatedResponses.length === 0) {
+        console.log('⚠️ No validated responses to send');
+        return { success: false, error: 'No validated responses to send' };
+      }
+
+      console.log(`📤 Sending ${validatedResponses.length} validated responses to server`);
+
+      // Get the current prompt
+      const currentPrompt = await this.getPropmpt();
+      console.log('📝 Current prompt:', currentPrompt);
+
+      // Send all validated responses to the server
+      console.log('🌐 Making HTTP request to localhost:8000/api/process');
+      const response = await fetch('http://localhost:8000/api/process', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          url,
-          tabId,
-          timestamp: Date.now(),
-          prompt: propmt,
+          urls: validatedResponses.map(r => ({
+            url: r.url
+          })),
+          prompt: currentPrompt || ''
         }),
       });
 
+      console.log('📡 HTTP response received. Status:', response.status, 'OK:', response.ok);
+
       if (response.ok) {
-        console.log('✅ URL sent to server successfully:', url);
-
-        // Try to parse the response and store it
-        const responseData = await response.json();
-
-        // Create a mock response for now (since we don't have actual server response structure)
-        const scrapeResponse: ScrapeResponse = {
-          id: `response_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          url,
-          prompt: propmt,
-          response: responseData.response || `Scraped content from: ${url}`,
-          timestamp: Date.now(),
-          status: 'completed',
-          validationStatus: 'pending'
-        };
-
-        await this.storeResponse(scrapeResponse);
-
-        return { success: true };
+        const responseText = await response.text();
+        console.log('✅ Validated responses sent to server successfully. Response:', responseText);
+        return { success: true, sent: validatedResponses.length };
       } else {
         console.error('❌ Server returned error:', response.status);
         return { success: false, error: `Server error: ${response.status}` };
       }
     } catch (error) {
-      console.error('💥 Failed to send URL to server:', error);
+      console.error('💥 Failed to send validated responses to server:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -181,12 +198,12 @@ export class BackgroundService {
     sendResponse: (response: any) => void
   ) {
     console.log('🎯 BackgroundService.handleMessage called with:', message.type, message);
+    console.log('📍 Message details - Type:', message.type, 'Sender:', sender.tab?.id, 'Full message:', JSON.stringify(message));
 
     if (message.type === 'URL_CHANGED') {
       console.log('📨 Received URL change from content script:', message.url);
 
-      // Handle async response properly
-      this.sendUrlToServer(message.url, sender.tab?.id)
+      this.storeUrlForLater(message.url, sender.tab?.id)
         .then(result => {
           console.log('📤 Sending response back to content script:', result);
           sendResponse(result);
@@ -196,7 +213,6 @@ export class BackgroundService {
           sendResponse({ success: false, error: error.message });
         });
 
-      // Return true to indicate we will send a response asynchronously
       return true;
     }
 
@@ -205,7 +221,6 @@ export class BackgroundService {
         `🔄 URL tracking ${message.enabled ? 'enabled' : 'disabled'} from popup`
       );
 
-      // Update badge to reflect tracking status
       if (message.enabled) {
         browser.action?.setBadgeText({ text: '✓' });
         browser.action?.setBadgeBackgroundColor({ color: '#4CAF50' });
@@ -234,12 +249,45 @@ export class BackgroundService {
       return true;
     }
 
-    if (message.type === 'REMOVE_RESPONSE') {
-      console.log('📨 Received request to remove response:', message.responseId);
+    if (message.type === 'SEND_VALIDATED') {
+      console.log('📨 Received request to send validated responses');
+      console.log('🔍 About to call sendValidatedResponsesToServer()');
 
-      this.removeResponse(message.responseId)
+      this.sendValidatedResponsesToServer()
+        .then(result => {
+          console.log('📤 Send validated responses result:', result);
+          sendResponse(result);
+        })
+        .catch(error => {
+          console.error('💥 Error sending validated responses:', error);
+          sendResponse({ success: false, error: error.message });
+        });
+
+      return true;
+    }
+
+    if (message.type === 'UPDATE_VALIDATION') {
+      console.log('📨 Received request to update validation:', message.responseUrl, message.validationStatus);
+
+      this.updateValidationStatus(message.responseUrl, message.validationStatus)
         .then(success => {
-          console.log('📤 Response removal result:', success);
+          console.log('📤 Validation update result:', success);
+          sendResponse({ success });
+        })
+        .catch(error => {
+          console.error('💥 Error updating validation:', error);
+          sendResponse({ success: false, error: error.message });
+        });
+
+      return true;
+    }
+
+    if (message.type === 'REMOVE_RESPONSE') {
+      console.log('📨 Received request to remove response:', message.responseUrl);
+
+      this.removeResponse(message.responseUrl)
+        .then(success => {
+          console.log('📤 Remove response result:', success);
           sendResponse({ success });
         })
         .catch(error => {
@@ -250,16 +298,32 @@ export class BackgroundService {
       return true;
     }
 
-    if (message.type === 'UPDATE_VALIDATION') {
-      console.log('📨 Received request to update validation:', message.responseId, message.validationStatus);
+    if (message.type === 'REMOVE_ALL_RESPONSES') {
+      console.log('📨 Received request to remove all responses');
 
-      this.updateValidationStatus(message.responseId, message.validationStatus)
+      this.removeAllResponses()
         .then(success => {
-          console.log('📤 Validation update result:', success);
+          console.log('📤 Remove all responses result:', success);
           sendResponse({ success });
         })
         .catch(error => {
-          console.error('💥 Error updating validation:', error);
+          console.error('💥 Error removing all responses:', error);
+          sendResponse({ success: false, error: error.message });
+        });
+
+      return true;
+    }
+
+    if (message.type === 'VALIDATE_ALL_PENDING') {
+      console.log('📨 Received request to validate all pending responses');
+
+      this.validateAllPendingResponses()
+        .then(success => {
+          console.log('📤 Validate all pending responses result:', success);
+          sendResponse({ success });
+        })
+        .catch(error => {
+          console.error('💥 Error validating all pending responses:', error);
           sendResponse({ success: false, error: error.message });
         });
 
