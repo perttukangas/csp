@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 
 import httpx
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import Response
 from lxml import html
 
 from app.models.scrape import ProcessRequest, ScrapeRequest
@@ -94,7 +94,7 @@ async def generate_selectors_for_url(client: httpx.AsyncClient, url: str, prompt
         return {} # Return empty dict on failure
 
 
-@router.post("/process", response_class=PlainTextResponse)
+@router.post("/process")
 async def process_urls(request: ProcessRequest):
     """
     Orchestrates the scraping process in two phases:
@@ -147,4 +147,13 @@ async def process_urls(request: ProcessRequest):
     writer.writeheader()
     writer.writerows(all_scraped_data)
     
-    return output.getvalue()
+    csv_content = output.getvalue()
+    
+    # Create a response that the browser will treat as a file download.
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=scraping_results.csv"
+        }
+    )
