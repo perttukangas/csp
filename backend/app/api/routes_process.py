@@ -53,7 +53,16 @@ async def scrape_and_crawl(
                             xpath = selector_info.get('xpath')
                             if xpath:
                                 elements = tree.xpath(f"({xpath})[{i+1}]")
-                                item_data[field] = elements[0].text_content().strip() if elements else ""
+                                if elements:
+                                    element = elements[0]
+                                    # Handle both element nodes and text results
+                                    if hasattr(element, 'text_content'):
+                                        item_data[field] = element.text_content().strip()
+                                    else:
+                                        # This is likely a text node or attribute value
+                                        item_data[field] = str(element).strip()
+                                else:
+                                    item_data[field] = ""
                         scraped_items.append(item_data)
 
         if depth > 1 and next_page_selector_info:
