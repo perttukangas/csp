@@ -8,6 +8,7 @@ dependencies = [
     "fastapi[standard]>=0.117.1",
     "pydantic-settings>=2.10.1",
     "google-generativeai>=0.8.0",
+    "lxml>=6.0.2",
 ]
 
 [dependency-groups]

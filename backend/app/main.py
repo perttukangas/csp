@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_scrape import router as scrape_router
+from app.api.routes_process import router as process_router
+
 from app.core.config import settings
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
@@ -17,7 +19,7 @@ app.add_middleware(
 
 # include routers
 app.include_router(scrape_router)
-
+app.include_router(process_router)
 
 @app.get('/')
 def root():

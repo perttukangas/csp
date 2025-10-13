@@ -76,3 +76,13 @@ class ErrorResponse(BaseModel):
     error: str = Field(..., description='Error message')
     details: Optional[str] = Field(None, description='Additional error details')
 
+
+class ProcessUrlRequest(BaseModel):
+    """A single URL to be processed."""
+    url: str
+
+class ProcessRequest(BaseModel):
+    """Request model for the main processing endpoint."""
+    urls: list[ProcessUrlRequest]
+    prompt: str
+    depth: int = Field(default=1, gt=0, description="How many link levels to follow. 1 means no crawling.")
