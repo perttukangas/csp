@@ -9,7 +9,7 @@
 
 - `uv sync`
 - Add `.env` file according to `.env.template`
-
+ 
 ## Start in dev mode
 
 - `uv run uvicorn app.main:app --reload`
@@ -18,5 +18,5 @@
 
 ```bash
 # Run integration tests in another terminal
-python backend/test_gemini_agent.py
+uv run tests/test_gemini_agent.py
 ```

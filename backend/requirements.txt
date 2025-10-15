@@ -1,6 +1,0 @@
-# Core dependencies
-fastapi[standard]>=0.117.1
-uvicorn[standard]>=0.15.0
-pydantic-settings>=2.10.1
-google-generativeai>=0.8.0
-requests>=2.31.0
