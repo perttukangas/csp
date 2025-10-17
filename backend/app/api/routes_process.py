@@ -15,6 +15,12 @@ from app.services.gemini_agent import get_gemini_service
 router = APIRouter(prefix='/api', tags=['process'])
 
 
+@router.get('/healthz')
+async def health_check():
+    """Health check endpoint."""
+    return {'status': 'healthy'}
+
+
 async def scrape_and_crawl(
     client: httpx.AsyncClient, url: str, selectors: dict[str, Any], depth: int, visited: set[str]
 ) -> list[dict[str, str]]:

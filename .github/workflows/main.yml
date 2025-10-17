@@ -14,3 +14,4 @@ jobs:
   backend:
     uses: ./.github/workflows/backend.yml
     if: ${{ !github.event.pull_request.draft }}
+    secrets: inherit

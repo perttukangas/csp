@@ -65,3 +65,39 @@ jobs:
       working-directory: ./backend
       run: |
         uv run mypy app/ --ignore-missing-imports
+  
+  deploy:
+    runs-on: ubuntu-22.04
+    # if: ${{ github.event_name == 'push' }}
+    needs: ['test', 'type-check']
+    steps:
+      - name: checkout
+        uses: actions/checkout@v5
+
+      - name: Install Heroku CLI
+        run: |
+          curl https://cli-assets.heroku.com/install.sh | sh 
+
+      - name: heroku deploy
+        uses: akhileshns/heroku-deploy@v3.14.15
+        with:
+          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+          heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
+          heroku_email: ${{ secrets.HEROKU_EMAIL }}
+
+          # Required for Heroku docker
+          stack: container
+          usedocker: true
+
+          # Docker build context
+          appdir: 'backend'
+
+          # Health check
+          healthcheck: '${{ secrets.HEROKU_APP_URL }}/api/healthz'
+          checkstring: 'ok'
+          delay: 60
+          rollbackonhealthcheckfailed: true
+        env:
+          HD_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          HD_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+          HD_DEBUG: False
