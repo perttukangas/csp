@@ -94,7 +94,7 @@ jobs:
 
           # Health check
           healthcheck: '${{ secrets.HEROKU_APP_URL }}/api/healthz'
-          delay: 60
+          delay: 30
           rollbackonhealthcheckfailed: true
         env:
           HD_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
