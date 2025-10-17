@@ -36,8 +36,6 @@ jobs:
     
     - name: Build extension
       working-directory: ./extension
-      env:
-        VITE_BACKEND_URL: ${{ secrets.HEROKU_APP_URL }}
       run: npm run build
 
   test-browsers:
@@ -58,16 +56,16 @@ jobs:
       working-directory: ./extension
       run: npm ci
     
+    - name: Create .env file
+      working-directory: ./extension
+      run: echo "VITE_BACKEND_URL=${{ secrets.HEROKU_APP_URL }}" > .env
+    
     - name: Build for Chrome
       working-directory: ./extension
-      env:
-        VITE_BACKEND_URL: ${{ secrets.HEROKU_APP_URL }}
       run: npm run build
     
     - name: Build for Firefox
       working-directory: ./extension
-      env:
-        VITE_BACKEND_URL: ${{ secrets.HEROKU_APP_URL }}
       run: npm run build:firefox
     
     - name: Create Chrome zip
