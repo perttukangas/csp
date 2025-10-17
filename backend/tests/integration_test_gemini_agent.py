@@ -1,6 +1,15 @@
 """
-Simple test script for the Gemini agent
-Run this after starting the server to test the integration
+Integration test script for the Gemini agent
+
+This is an integration test that requires:
+1. The server to be running (uv run uvicorn app.main:app --reload)
+2. A valid GEMINI_API_KEY in the .env file
+
+This file is renamed to integration_test_* so it won't be automatically 
+picked up by pytest. To run it manually:
+  python tests/integration_test_gemini_agent.py
+
+For unit tests, see test_gemini_service.py
 """
 
 import requests

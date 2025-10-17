@@ -100,7 +100,9 @@ function App() {
       console.log('📨 Received response from background script:', result);
 
       if (result.success) {
-        alert(`Successfully sent ${result.sent} validated responses to server!`);
+        alert(
+          `Successfully sent ${result.sent} validated responses to server!`
+        );
         // Refresh the counts after sending
         await loadPendingValidations();
       } else {
@@ -136,9 +138,7 @@ function App() {
         >
           URLs
           {pendingValidations > 0 && (
-            <span className="badge">
-              {pendingValidations}
-            </span>
+            <span className="badge">{pendingValidations}</span>
           )}
         </button>
       </div>
@@ -167,7 +167,9 @@ function App() {
               onChange={e => handleToggleTracking(e.target.checked)}
               onClick={e => e.stopPropagation()} // Prevent container click when clicking checkbox
             />
-            <span className={`status-text ${isTrackingEnabled ? 'enabled' : 'disabled'}`}>
+            <span
+              className={`status-text ${isTrackingEnabled ? 'enabled' : 'disabled'}`}
+            >
               {isTrackingEnabled
                 ? '🟢 URL Tracking Enabled'
                 : '🔴 URL Tracking Disabled'}
@@ -180,7 +182,9 @@ function App() {
               onClick={handleSendValidated}
               disabled={isSending || validatedCount === 0}
             >
-              {isSending ? '⟳ Sending...' : `📤 Send ${validatedCount} URLs to processing`}
+              {isSending
+                ? '⟳ Sending...'
+                : `📤 Send ${validatedCount} URLs to processing`}
             </button>
           </div>
         </div>

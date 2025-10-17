@@ -14,9 +14,6 @@
 
 - `uv run uvicorn app.main:app --reload`
 
-## 🧪 Testing
+## Run tests
 
-```bash
-# Run integration tests in another terminal
-uv run tests/test_gemini_agent.py
-```
+- `uv run pytest <specific test path>`

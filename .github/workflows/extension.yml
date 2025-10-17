@@ -1,0 +1,87 @@
+name: Extension Flow
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+    
+    - name: Setup Node.js 22
+      uses: actions/setup-node@v6
+      with:
+        node-version: 22
+        cache: 'npm'
+        cache-dependency-path: extension/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: ./extension
+      run: npm ci
+    
+    - name: Run type checking
+      working-directory: ./extension
+      run: npm run compile
+    
+    - name: Check code formatting
+      working-directory: ./extension
+      run: npm run format:check
+    
+    - name: Run tests
+      working-directory: ./extension
+      run: npm run test
+    
+    - name: Build extension
+      working-directory: ./extension
+      run: npm run build
+
+  test-browsers:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: 22
+        cache: 'npm'
+        cache-dependency-path: extension/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: ./extension
+      run: npm ci
+    
+    - name: Build for Chrome
+      working-directory: ./extension
+      run: npm run build
+    
+    - name: Build for Firefox
+      working-directory: ./extension
+      run: npm run build:firefox
+    
+    - name: Create Chrome zip
+      working-directory: ./extension
+      run: npm run zip
+    
+    - name: Create Firefox zip
+      working-directory: ./extension
+      run: npm run zip:firefox
+    
+    - name: Upload Chrome build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: chrome-extension-node-22
+        path: extension/.output/chrome-mv3.zip
+        retention-days: 7
+    
+    - name: Upload Firefox build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: firefox-extension-node-22
+        path: extension/.output/firefox-mv2.zip
+        retention-days: 7
