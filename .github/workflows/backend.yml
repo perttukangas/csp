@@ -94,7 +94,6 @@ jobs:
 
           # Health check
           healthcheck: '${{ secrets.HEROKU_APP_URL }}/api/healthz'
-          checkstring: 'ok'
           delay: 60
           rollbackonhealthcheckfailed: true
         env:
