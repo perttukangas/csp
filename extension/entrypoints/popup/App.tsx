@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 import { browser } from 'wxt/browser';
+import { extensionStorage } from '../../utils/storage';
 import UrlsList from './UrlsList';
 
 function App() {
@@ -39,10 +40,10 @@ function App() {
     const loadData = async () => {
       try {
         // Load tracking setting from storage
-        const result = await browser.storage.sync.get(['urlTrackingEnabled']);
-        const propmtResult = await browser.storage.sync.get(['prompt']);
-        setPrompt(propmtResult.prompt || '');
-        setIsTrackingEnabled(result.urlTrackingEnabled || false);
+        const trackingEnabled = await extensionStorage.get('urlTrackingEnabled', false);
+        const prompt = await extensionStorage.get('prompt', '');
+        setPrompt(prompt || '');
+        setIsTrackingEnabled(trackingEnabled || false);
 
         // Load pending validations
         await loadPendingValidations();
@@ -59,7 +60,7 @@ function App() {
   const handleToggleTracking = async (enabled: boolean) => {
     try {
       setIsTrackingEnabled(enabled);
-      await browser.storage.sync.set({ urlTrackingEnabled: enabled });
+      await extensionStorage.set('urlTrackingEnabled', enabled);
 
       // Notify background script of the change
       await browser.runtime.sendMessage({
@@ -77,7 +78,7 @@ function App() {
     try {
       setPrompt(newPrompt);
       // Should debounce probably. Leave for later.
-      await browser.storage.sync.set({ prompt: newPrompt });
+      await extensionStorage.set('prompt', newPrompt);
       console.log('Prompt updated:', newPrompt);
     } catch (error) {
       console.error('Failed to update prompt:', error);

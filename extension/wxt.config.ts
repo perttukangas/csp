@@ -4,9 +4,11 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
-    permissions: ['tabs', 'activeTab', 'storage'],
+    permissions: ['tabs', 'activeTab', 'storage', 'unlimitedStorage'],
     host_permissions: [
-      'http://localhost:*/*', // WSL IP range
+      'http://localhost:3000/*',
+      'http://localhost:8080/*',
+      'http://127.0.0.1:*/*',
     ],
   },
 });

@@ -1,3 +1,5 @@
+import { extensionStorage } from '../../utils/storage';
+
 interface ScrapeResponse {
   url: string;
   validationStatus?: 'pending' | 'validated' | 'invalid';
@@ -6,18 +8,18 @@ interface ScrapeResponse {
 export class BackgroundService {
   async getPropmpt() {
     try {
-      const result = await browser.storage.sync.get(['prompt']);
-      return result.prompt || '';
+      const prompt = await extensionStorage.get('prompt', '');
+      return prompt || '';
     } catch (error) {
       console.error('Failed to get prompt:', error);
-      return undefined;
+      return '';
     }
   }
 
   async getStoredResponses(): Promise<ScrapeResponse[]> {
     try {
-      const result = await browser.storage.sync.get(['storedResponses']);
-      return result.storedResponses || [];
+      const responses = await extensionStorage.get('storedResponses', []);
+      return responses || [];
     } catch (error) {
       console.error('Failed to get stored responses:', error);
       return [];
@@ -28,7 +30,7 @@ export class BackgroundService {
     try {
       const existingResponses = await this.getStoredResponses();
       const updatedResponses = [...existingResponses, response];
-      await browser.storage.sync.set({ storedResponses: updatedResponses });
+      await extensionStorage.set('storedResponses', updatedResponses);
       console.log('📦 Response stored successfully:', response.url);
     } catch (error) {
       console.error('Failed to store response:', error);
@@ -46,7 +48,7 @@ export class BackgroundService {
           ? { ...response, validationStatus }
           : response
       );
-      await browser.storage.sync.set({ storedResponses: updatedResponses });
+      await extensionStorage.set('storedResponses', updatedResponses);
       console.log(
         '✅ Validation status updated successfully:',
         responseUrl,
@@ -65,7 +67,7 @@ export class BackgroundService {
       const updatedResponses = existingResponses.filter(
         response => response.url !== responseUrl
       );
-      await browser.storage.sync.set({ storedResponses: updatedResponses });
+      await extensionStorage.set('storedResponses', updatedResponses);
       console.log('🗑️ Response removed successfully:', responseUrl);
       return true;
     } catch (error) {
@@ -76,7 +78,7 @@ export class BackgroundService {
 
   async removeAllResponses(): Promise<boolean> {
     try {
-      await browser.storage.sync.set({ storedResponses: [] });
+      await extensionStorage.set('storedResponses', []);
       console.log('🗑️ All responses removed successfully');
       return true;
     } catch (error) {
@@ -93,7 +95,7 @@ export class BackgroundService {
           ? { ...response, validationStatus: 'validated' as const }
           : response
       );
-      await browser.storage.sync.set({ storedResponses: updatedResponses });
+      await extensionStorage.set('storedResponses', updatedResponses);
       console.log('✅ All pending responses validated successfully');
       return true;
     } catch (error) {
@@ -104,8 +106,8 @@ export class BackgroundService {
 
   async isTrackingEnabled(): Promise<boolean> {
     try {
-      const result = await browser.storage.sync.get(['urlTrackingEnabled']);
-      return result.urlTrackingEnabled || false;
+      const enabled = await extensionStorage.get('urlTrackingEnabled', false);
+      return enabled || false;
     } catch (error) {
       console.error('Failed to check tracking status:', error);
       return false;
