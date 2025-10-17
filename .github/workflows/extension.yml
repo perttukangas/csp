@@ -82,12 +82,12 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: chrome-extension-node-22
-        path: extension/.output/web-scraiper-0.0.0-chrome.zip
+        path: extension/.output/chrome-mv3/
         retention-days: 7
     
     - name: Upload Firefox build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: firefox-extension-node-22
-        path: extension/.output/web-scraiper-0.0.0-firefox.zip
+        path: extension/.output/firefox-mv2/
         retention-days: 7

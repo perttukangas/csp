@@ -11,6 +11,7 @@ jobs:
   extension:
     uses: ./.github/workflows/extension.yml
     if: ${{ !github.event.pull_request.draft }}
+    secrets: inherit
   backend:
     uses: ./.github/workflows/backend.yml
     if: ${{ !github.event.pull_request.draft }}
