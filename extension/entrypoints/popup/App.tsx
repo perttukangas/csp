@@ -40,7 +40,10 @@ function App() {
     const loadData = async () => {
       try {
         // Load tracking setting from storage
-        const trackingEnabled = await extensionStorage.get('urlTrackingEnabled', false);
+        const trackingEnabled = await extensionStorage.get(
+          'urlTrackingEnabled',
+          false
+        );
         const prompt = await extensionStorage.get('prompt', '');
         setPrompt(prompt || '');
         setIsTrackingEnabled(trackingEnabled || false);

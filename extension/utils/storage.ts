@@ -13,7 +13,10 @@ export class ExtensionStorage {
       await browser.storage.sync.get({});
       return browser.storage.sync;
     } catch (error) {
-      console.warn('Storage.sync not available, falling back to storage.local:', error);
+      console.warn(
+        'Storage.sync not available, falling back to storage.local:',
+        error
+      );
       return browser.storage.local;
     }
   }
