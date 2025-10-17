@@ -19,6 +19,8 @@ dev = [
     "ruff>=0.13.1",
     "requests>=2.31.0",
     "types-requests>=2.32.4.20250913",
+    "lxml-stubs>=0.5.1",
+    "pandas-stubs",
 ]
 
 [tool.ruff]

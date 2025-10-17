@@ -9,19 +9,17 @@ from app.services.scraping_service import scrape_and_crawl
 
 
 async def validate_and_refine_data(
-    client: httpx.AsyncClient,
-    initial_data: list[dict],
-    original_selectors_map: dict,
-    request: ProcessRequest
+    client: httpx.AsyncClient, initial_data: list[dict], original_selectors_map: dict, request: ProcessRequest
 ) -> list[dict]:
-
     if not initial_data:
         return initial_data
 
     df = pd.DataFrame(initial_data)
-    samples_by_url = {url: df[df['source_url'] == url].head(5).to_string() 
-                      for url in original_selectors_map.keys() 
-                      if not df[df['source_url'] == url].empty}
+    samples_by_url = {
+        url: df[df['source_url'] == url].head(5).to_string()
+        for url in original_selectors_map.keys()
+        if not df[df['source_url'] == url].empty
+    }
 
     validation_prompt = f"""
 You are an expert Data Validation and Scraping Correction Agent.
@@ -59,24 +57,24 @@ Return ONLY a valid JSON object with this exact structure:
 
     gemini_service = get_gemini_service()
     parsed_response = gemini_service.validate_and_refine_selectors(validation_prompt)
-    
-    decision = parsed_response.get("decision", "BAD")
-    reasoning = parsed_response.get("reasoning", "No reasoning provided.")
-    refined_selectors = parsed_response.get("refined_selectors", {})
 
-    print(f"Validation Agent Decision: {decision}. Reason: {reasoning}")
+    decision = parsed_response.get('decision', 'BAD')
+    reasoning = parsed_response.get('reasoning', 'No reasoning provided.')
+    refined_selectors = parsed_response.get('refined_selectors', {})
 
-    if decision == "GOOD" or not refined_selectors:
-        print("Data is valid or no corrections were provided.")
+    print(f'Validation Agent Decision: {decision}. Reason: {reasoning}')
+
+    if decision == 'GOOD' or not refined_selectors:
+        print('Data is valid or no corrections were provided.')
         return initial_data
 
-    print("Re-scraping data with refined selectors from validation agent...")
-    visited_urls = set()
+    print('Re-scraping data with refined selectors from validation agent...')
+    visited_urls: set[str] = set()
     rescraping_tasks = [
-        scrape_and_crawl(client, url, selectors, request.depth, visited_urls) 
+        scrape_and_crawl(client, url, selectors, request.depth, visited_urls)
         for url, selectors in refined_selectors.items()
         if selectors
     ]
-    
+
     new_results = await asyncio.gather(*rescraping_tasks)
     return [item for sublist in new_results for item in sublist]

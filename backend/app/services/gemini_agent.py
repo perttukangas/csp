@@ -1,5 +1,4 @@
 import json
-from typing import Optional
 
 from google import genai
 from google.genai import types
@@ -10,6 +9,7 @@ from app.models.scrape import InputFormat, OutputFormat, ScrapeRequest, ScrapeRe
 # ------------------------------------------------------------
 # 🔹 Helper functions for prompt text
 # ------------------------------------------------------------
+
 
 def get_base_prompt() -> str:
     """Base instructions for Gemini – defines its role and task."""
@@ -92,14 +92,15 @@ Selector Guidelines:
 # 🔹 Main service class
 # ------------------------------------------------------------
 
+
 class GeminiAgentService:
     """Service that interacts with Gemini to generate web scraping selectors."""
 
     def __init__(self):
         if not settings.gemini_api_key:
-            raise ValueError("GEMINI_API_KEY is not configured. Please set it in your .env file.")
+            raise ValueError('GEMINI_API_KEY is not configured. Please set it in your .env file.')
         self.client = genai.Client(api_key=settings.gemini_api_key)
-        self.model_name = "models/gemini-2.5-flash"
+        self.model_name = 'models/gemini-2.5-flash'
 
     # -----------------------------
     # Prompt construction
@@ -112,7 +113,7 @@ class GeminiAgentService:
 
     def _build_user_prompt(self, request: ScrapeRequest) -> types.Content:
         """Builds the user prompt based on the given scrape request."""
-        input_type = "HTML content" if request.input_format == InputFormat.HTML else "DOM tree"
+        input_type = 'HTML content' if request.input_format == InputFormat.HTML else 'DOM tree'
 
         prompt = f"""URL: {request.url}
 
@@ -137,8 +138,8 @@ class GeminiAgentService:
         try:
             parsed = json.loads(response_text)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in Gemini response: {e}\nRaw output:\n{response_text}")
-        if "selectors" not in parsed:
+            raise ValueError(f'Invalid JSON in Gemini response: {e}\nRaw output:\n{response_text}') from e
+        if 'selectors' not in parsed:
             raise ValueError(f'Missing key "selectors" in response.\nRaw output:\n{response_text}')
         return parsed
 
@@ -155,51 +156,45 @@ class GeminiAgentService:
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=[system_prompt, user_prompt],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json"
-                ),
+                config=types.GenerateContentConfig(response_mime_type='application/json'),
             )
             raw_output = response.text
         except Exception as e:
-            raise RuntimeError(f"Gemini API call failed: {e}")
+            raise RuntimeError(f'Gemini API call failed: {e}') from e
 
         parsed = self._parse_gemini_response(raw_output)
         selectors = {
             name: Selectors(
-                xpath=data.get("xpath"),
-                css=data.get("css"),
+                xpath=data.get('xpath'),
+                css=data.get('css'),
             )
-            for name, data in parsed["selectors"].items()
+            for name, data in parsed['selectors'].items()
         }
 
         return ScrapeResponse(url=request.url, selectors=selectors, raw_output=raw_output)
-
 
     def validate_and_refine_selectors(self, validation_prompt: str) -> dict:
         try:
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=[validation_prompt],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json"
-                ),
+                config=types.GenerateContentConfig(response_mime_type='application/json'),
             )
             return json.loads(response.text)
         except (Exception, json.JSONDecodeError) as e:
-            print(f"Validation agent call or JSON parsing failed: {e}")
+            print(f'Validation agent call or JSON parsing failed: {e}')
             return {
-                "decision": "GOOD", 
-                "reasoning": "Validation agent failed, skipping refinement.", 
-                "refined_selectors": {}
+                'decision': 'GOOD',
+                'reasoning': 'Validation agent failed, skipping refinement.',
+                'refined_selectors': {},
             }
-
 
 
 # ------------------------------------------------------------
 # 🔹 Singleton instance
 # ------------------------------------------------------------
 
-_gemini_service: Optional[GeminiAgentService] = None
+_gemini_service: GeminiAgentService | None = None
 
 
 def get_gemini_service() -> GeminiAgentService:
