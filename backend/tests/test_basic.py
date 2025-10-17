@@ -79,7 +79,7 @@ def test_parameterized_double(input_value, expected):
 def test_exception_handling():
     """Test exception handling"""
     with pytest.raises(ZeroDivisionError):
-        result = 10 / 0
+        _ = 10 / 0
 
 
 def test_approximate_values():
