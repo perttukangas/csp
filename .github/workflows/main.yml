@@ -8,6 +8,9 @@ on:
     types: [opened, synchronize, ready_for_review]
 
 jobs:
-  extension-test:
+  extension:
     uses: ./.github/workflows/extension.yml
+    if: ${{ !github.event.pull_request.draft }}
+  backend:
+    uses: ./.github/workflows/backend.yml
     if: ${{ !github.event.pull_request.draft }}

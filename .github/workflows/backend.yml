@@ -1,0 +1,67 @@
+name: Backend Flow
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.9.3"
+    
+    - name: Set up Python 3.11
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      working-directory: ./backend
+      run: |
+        uv sync --dev
+    
+    - name: Run linting
+      working-directory: ./backend
+      run: |
+        uv run ruff check .
+      continue-on-error: true
+    
+    - name: Run formatting check
+      working-directory: ./backend
+      run: |
+        uv run ruff format --check .
+    
+    - name: Run unit tests
+      working-directory: ./backend
+      run: |
+        uv run pytest tests/ -v -m "not integration"
+
+  type-check:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.9.3"
+    
+    - name: Set up Python
+      run: uv python install 3.11
+    
+    - name: Install dependencies with type checking tools
+      working-directory: ./backend
+      run: |
+        uv sync --dev
+        uv add --group dev mypy types-requests
+    
+    - name: Run type checking
+      working-directory: ./backend
+      run: |
+        uv run mypy app/ --ignore-missing-imports

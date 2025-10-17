@@ -5,7 +5,7 @@ This is an integration test that requires:
 1. The server to be running (uv run uvicorn app.main:app --reload)
 2. A valid GEMINI_API_KEY in the .env file
 
-This file is renamed to integration_test_* so it won't be automatically 
+This file is renamed to integration_test_* so it won't be automatically
 picked up by pytest. To run it manually:
   python tests/integration_test_gemini_agent.py
 
@@ -70,7 +70,7 @@ def test_generate_selectors():
         if response.status_code == 200:
             data = response.json()
             print('\n✅ Success! Generated selectors:')
-            print(f"URL: {data['url']}")
+            print(f'URL: {data["url"]}')
             print('\nSelectors:')
             for field_name, selectors in data['selectors'].items():
                 print(f'\n  {field_name}:')
@@ -178,4 +178,3 @@ if __name__ == '__main__':
     total_passed = sum(1 for _, passed in results if passed)
     print(f'\nTotal: {total_passed}/{len(results)} tests passed')
     print('=' * 60)
-

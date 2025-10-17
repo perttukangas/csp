@@ -68,4 +68,3 @@ async def health_check():
 
     except Exception as e:
         return {'status': 'error', 'message': f'Unexpected error: {str(e)}'}
-
