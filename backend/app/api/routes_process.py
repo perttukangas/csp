@@ -18,7 +18,7 @@ router = APIRouter(prefix='/api', tags=['process'])
 @router.get('/healthz')
 async def health_check():
     """Health check endpoint."""
-    return "ok"
+    return 'ok'
 
 
 async def scrape_and_crawl(
