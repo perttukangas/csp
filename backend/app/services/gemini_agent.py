@@ -1,5 +1,4 @@
 import json
-from typing import Optional
 
 import google.generativeai as genai
 
@@ -176,15 +175,13 @@ Generate the selectors now. Return ONLY the JSON output, no other text."""
         # Convert to Selectors objects
         selectors_dict = {}
         for field_name, selector_data in parsed_data['selectors'].items():
-            selectors_dict[field_name] = Selectors(
-                xpath=selector_data.get('xpath'), css=selector_data.get('css')
-            )
+            selectors_dict[field_name] = Selectors(xpath=selector_data.get('xpath'), css=selector_data.get('css'))
 
         return ScrapeResponse(url=request.url, selectors=selectors_dict, raw_output=raw_output)
 
 
 # Singleton instance
-_gemini_service: Optional[GeminiAgentService] = None
+_gemini_service: GeminiAgentService | None = None
 
 
 def get_gemini_service() -> GeminiAgentService:
@@ -195,4 +192,3 @@ def get_gemini_service() -> GeminiAgentService:
         _gemini_service = GeminiAgentService()
 
     return _gemini_service
-

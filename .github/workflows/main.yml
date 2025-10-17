@@ -1,0 +1,18 @@
+name: Main flow
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, ready_for_review]
+
+jobs:
+  extension:
+    uses: ./.github/workflows/extension.yml
+    if: ${{ !github.event.pull_request.draft }}
+    secrets: inherit
+  backend:
+    uses: ./.github/workflows/backend.yml
+    if: ${{ !github.event.pull_request.draft }}
+    secrets: inherit

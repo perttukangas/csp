@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 import { browser } from 'wxt/browser';
+import { extensionStorage } from '../../utils/storage';
 import UrlsList from './UrlsList';
 
 function App() {
@@ -39,10 +40,13 @@ function App() {
     const loadData = async () => {
       try {
         // Load tracking setting from storage
-        const result = await browser.storage.sync.get(['urlTrackingEnabled']);
-        const propmtResult = await browser.storage.sync.get(['prompt']);
-        setPrompt(propmtResult.prompt || '');
-        setIsTrackingEnabled(result.urlTrackingEnabled || false);
+        const trackingEnabled = await extensionStorage.get(
+          'urlTrackingEnabled',
+          false
+        );
+        const prompt = await extensionStorage.get('prompt', '');
+        setPrompt(prompt || '');
+        setIsTrackingEnabled(trackingEnabled || false);
 
         // Load pending validations
         await loadPendingValidations();
@@ -59,7 +63,7 @@ function App() {
   const handleToggleTracking = async (enabled: boolean) => {
     try {
       setIsTrackingEnabled(enabled);
-      await browser.storage.sync.set({ urlTrackingEnabled: enabled });
+      await extensionStorage.set('urlTrackingEnabled', enabled);
 
       // Notify background script of the change
       await browser.runtime.sendMessage({
@@ -77,7 +81,7 @@ function App() {
     try {
       setPrompt(newPrompt);
       // Should debounce probably. Leave for later.
-      await browser.storage.sync.set({ prompt: newPrompt });
+      await extensionStorage.set('prompt', newPrompt);
       console.log('Prompt updated:', newPrompt);
     } catch (error) {
       console.error('Failed to update prompt:', error);
@@ -100,7 +104,9 @@ function App() {
       console.log('📨 Received response from background script:', result);
 
       if (result.success) {
-        alert(`Successfully sent ${result.sent} validated responses to server!`);
+        alert(
+          `Successfully sent ${result.sent} validated responses to server!`
+        );
         // Refresh the counts after sending
         await loadPendingValidations();
       } else {
@@ -136,9 +142,7 @@ function App() {
         >
           URLs
           {pendingValidations > 0 && (
-            <span className="badge">
-              {pendingValidations}
-            </span>
+            <span className="badge">{pendingValidations}</span>
           )}
         </button>
       </div>
@@ -167,7 +171,9 @@ function App() {
               onChange={e => handleToggleTracking(e.target.checked)}
               onClick={e => e.stopPropagation()} // Prevent container click when clicking checkbox
             />
-            <span className={`status-text ${isTrackingEnabled ? 'enabled' : 'disabled'}`}>
+            <span
+              className={`status-text ${isTrackingEnabled ? 'enabled' : 'disabled'}`}
+            >
               {isTrackingEnabled
                 ? '🟢 URL Tracking Enabled'
                 : '🔴 URL Tracking Disabled'}
@@ -180,7 +186,9 @@ function App() {
               onClick={handleSendValidated}
               disabled={isSending || validatedCount === 0}
             >
-              {isSending ? '⟳ Sending...' : `📤 Send ${validatedCount} URLs to processing`}
+              {isSending
+                ? '⟳ Sending...'
+                : `📤 Send ${validatedCount} URLs to processing`}
             </button>
           </div>
         </div>
