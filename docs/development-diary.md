@@ -1,3 +1,16 @@
+## 13.10
+
+- Init agent to handle spider data #3
+- Test and integrate #8
+
+What is planned next:
+
+- Experiement with subagent #11
+- 2 phase processing for urls #12
+- Crawling along different next page links #13
+- Authenticated scraping #14
+- Setup the pipeline #15
+
 ## 6.10
 
 - Init spiders #1
