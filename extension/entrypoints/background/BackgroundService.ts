@@ -178,7 +178,8 @@ export class BackgroundService {
       console.log('📝 Current prompt:', currentPrompt);
 
       // Send all validated responses to the server
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+      const backendUrl =
+        import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
       console.log(`🌐 Making HTTP request to ${backendUrl}/api/process`);
       const response = await fetch(`${backendUrl}/api/process`, {
         method: 'POST',
