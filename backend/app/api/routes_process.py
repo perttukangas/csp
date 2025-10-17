@@ -12,8 +12,12 @@ from app.services.validation_service import validate_and_refine_data
 router = APIRouter(prefix='/api', tags=['process'])
 
 
+@router.get('/healthz')
+async def health_check():
+    """Health check endpoint."""
+    return 'ok'
 
-@router.post("/process")
+@router.post('/process')
 async def process_urls(request: ProcessRequest):
     """
     Orchestrates the scraping process in two phases:
@@ -56,7 +60,7 @@ async def process_urls(request: ProcessRequest):
         print(f"Phase 2: Starting scraping for {len(url_to_selectors_map)} URLs")
         visited_urls = set()
         scraping_tasks = [
-            scrape_and_crawl(client, url, selectors, request.depth, visited_urls) 
+            scrape_and_crawl(client, url, selectors, request.depth, visited_urls)
             for url, selectors in url_to_selectors_map.items()
         ]
         results = await asyncio.gather(*scraping_tasks)

@@ -14,9 +14,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "mypy>=1.18.2",
     "pytest>=8.4.2",
     "ruff>=0.13.1",
-    "requests>=2.31.0"
+    "requests>=2.31.0",
+    "types-requests>=2.32.4.20250913",
 ]
 
 [tool.ruff]
@@ -69,5 +71,18 @@ select = ["E", "F", "B", "I", "UP", "C90"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--disable-warnings",
+    "-ra"
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests"
+]
 
 
