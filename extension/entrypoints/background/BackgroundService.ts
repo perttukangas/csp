@@ -103,8 +103,18 @@ export class BackgroundService {
 
   async getStoredResponses(): Promise<ScrapeResponse[]> {
     try {
-      const result = await browser.storage.sync.get(['storedResponses']);
-      return result.storedResponses || [];
+      // Try sync storage first for backward compatibility
+      const syncResult = await browser.storage.sync.get(['storedResponses']);
+      let responses = syncResult.storedResponses || [];
+
+      // Also get HTML responses from local storage
+      const localResult = await browser.storage.local.get(['htmlResponses']);
+      const htmlResponses = localResult.htmlResponses || [];
+
+      // Merge both arrays
+      responses = [...responses, ...htmlResponses];
+
+      return responses;
     } catch (error) {
       console.error('Failed to get stored responses:', error);
       return [];
@@ -113,12 +123,71 @@ export class BackgroundService {
 
   async storeResponse(response: ScrapeResponse): Promise<void> {
     try {
-      const existingResponses = await this.getStoredResponses();
-      const updatedResponses = [...existingResponses, response];
-      await browser.storage.sync.set({ storedResponses: updatedResponses });
-      console.log('📦 Response stored successfully:', response.url);
+      if (response.type === 'html' && response.html) {
+        // Store HTML responses in local storage (has much higher limits)
+        const existingHtmlResponses = await this.getStoredHtmlResponses();
+        const updatedHtmlResponses = [...existingHtmlResponses, response];
+        await browser.storage.local.set({
+          htmlResponses: updatedHtmlResponses,
+        });
+        console.log(
+          '📦 HTML response stored successfully in local storage:',
+          response.url
+        );
+      } else {
+        // Store URL-only responses in sync storage
+        const existingResponses = await this.getStoredUrlResponses();
+        const updatedResponses = [...existingResponses, response];
+        await browser.storage.sync.set({ storedResponses: updatedResponses });
+        console.log(
+          '📦 URL response stored successfully in sync storage:',
+          response.url
+        );
+      }
     } catch (error) {
       console.error('Failed to store response:', error);
+      throw error;
+    }
+  }
+
+  private async getStoredUrlResponses(): Promise<ScrapeResponse[]> {
+    try {
+      const result = await browser.storage.sync.get(['storedResponses']);
+      return result.storedResponses || [];
+    } catch (error) {
+      console.error('Failed to get stored URL responses:', error);
+      return [];
+    }
+  }
+
+  private async getStoredHtmlResponses(): Promise<ScrapeResponse[]> {
+    try {
+      const result = await browser.storage.local.get(['htmlResponses']);
+      return result.htmlResponses || [];
+    } catch (error) {
+      console.error('Failed to get stored HTML responses:', error);
+      return [];
+    }
+  }
+
+  async getStorageInfo(): Promise<{
+    syncUsage: number;
+    localUsage: number;
+    totalResponses: number;
+  }> {
+    try {
+      const syncData = await browser.storage.sync.getBytesInUse();
+      const localData = await browser.storage.local.getBytesInUse();
+      const totalResponses = (await this.getStoredResponses()).length;
+
+      return {
+        syncUsage: syncData,
+        localUsage: localData,
+        totalResponses,
+      };
+    } catch (error) {
+      console.error('Failed to get storage info:', error);
+      return { syncUsage: 0, localUsage: 0, totalResponses: 0 };
     }
   }
 
@@ -127,19 +196,52 @@ export class BackgroundService {
     validationStatus: 'validated' | 'invalid'
   ): Promise<boolean> {
     try {
-      const existingResponses = await this.getStoredResponses();
-      const updatedResponses = existingResponses.map(response =>
+      // Update in both storage types
+      let updated = false;
+
+      // Update URL responses in sync storage
+      const urlResponses = await this.getStoredUrlResponses();
+      const updatedUrlResponses = urlResponses.map(response =>
         response.url === responseUrl
           ? { ...response, validationStatus }
           : response
       );
-      await browser.storage.sync.set({ storedResponses: updatedResponses });
-      console.log(
-        '✅ Validation status updated successfully:',
-        responseUrl,
-        validationStatus
+
+      if (
+        JSON.stringify(urlResponses) !== JSON.stringify(updatedUrlResponses)
+      ) {
+        await browser.storage.sync.set({
+          storedResponses: updatedUrlResponses,
+        });
+        updated = true;
+      }
+
+      // Update HTML responses in local storage
+      const htmlResponses = await this.getStoredHtmlResponses();
+      const updatedHtmlResponses = htmlResponses.map(response =>
+        response.url === responseUrl
+          ? { ...response, validationStatus }
+          : response
       );
-      return true;
+
+      if (
+        JSON.stringify(htmlResponses) !== JSON.stringify(updatedHtmlResponses)
+      ) {
+        await browser.storage.local.set({
+          htmlResponses: updatedHtmlResponses,
+        });
+        updated = true;
+      }
+
+      if (updated) {
+        console.log(
+          '✅ Validation status updated successfully:',
+          responseUrl,
+          validationStatus
+        );
+      }
+
+      return updated;
     } catch (error) {
       console.error('Failed to update validation status:', error);
       return false;
@@ -148,13 +250,39 @@ export class BackgroundService {
 
   async removeResponse(responseUrl: string): Promise<boolean> {
     try {
-      const existingResponses = await this.getStoredResponses();
-      const updatedResponses = existingResponses.filter(
+      let removed = false;
+
+      // Remove from URL responses in sync storage
+      const urlResponses = await this.getStoredUrlResponses();
+      const updatedUrlResponses = urlResponses.filter(
         response => response.url !== responseUrl
       );
-      await browser.storage.sync.set({ storedResponses: updatedResponses });
-      console.log('🗑️ Response removed successfully:', responseUrl);
-      return true;
+
+      if (urlResponses.length !== updatedUrlResponses.length) {
+        await browser.storage.sync.set({
+          storedResponses: updatedUrlResponses,
+        });
+        removed = true;
+      }
+
+      // Remove from HTML responses in local storage
+      const htmlResponses = await this.getStoredHtmlResponses();
+      const updatedHtmlResponses = htmlResponses.filter(
+        response => response.url !== responseUrl
+      );
+
+      if (htmlResponses.length !== updatedHtmlResponses.length) {
+        await browser.storage.local.set({
+          htmlResponses: updatedHtmlResponses,
+        });
+        removed = true;
+      }
+
+      if (removed) {
+        console.log('🗑️ Response removed successfully:', responseUrl);
+      }
+
+      return removed;
     } catch (error) {
       console.error('Failed to remove response:', error);
       return false;
@@ -163,8 +291,10 @@ export class BackgroundService {
 
   async removeAllResponses(): Promise<boolean> {
     try {
+      // Clear both storage types
       await browser.storage.sync.set({ storedResponses: [] });
-      console.log('🗑️ All responses removed successfully');
+      await browser.storage.local.set({ htmlResponses: [] });
+      console.log('🗑️ All responses removed successfully from both storages');
       return true;
     } catch (error) {
       console.error('Failed to remove all responses:', error);
@@ -174,14 +304,27 @@ export class BackgroundService {
 
   async validateAllPendingResponses(): Promise<boolean> {
     try {
-      const existingResponses = await this.getStoredResponses();
-      const updatedResponses = existingResponses.map(response =>
+      // Update URL responses in sync storage
+      const urlResponses = await this.getStoredUrlResponses();
+      const updatedUrlResponses = urlResponses.map(response =>
         response.validationStatus === 'pending'
           ? { ...response, validationStatus: 'validated' as const }
           : response
       );
-      await browser.storage.sync.set({ storedResponses: updatedResponses });
-      console.log('✅ All pending responses validated successfully');
+      await browser.storage.sync.set({ storedResponses: updatedUrlResponses });
+
+      // Update HTML responses in local storage
+      const htmlResponses = await this.getStoredHtmlResponses();
+      const updatedHtmlResponses = htmlResponses.map(response =>
+        response.validationStatus === 'pending'
+          ? { ...response, validationStatus: 'validated' as const }
+          : response
+      );
+      await browser.storage.local.set({ htmlResponses: updatedHtmlResponses });
+
+      console.log(
+        '✅ All pending responses validated successfully in both storages'
+      );
       return true;
     } catch (error) {
       console.error('Failed to validate all pending responses:', error);
