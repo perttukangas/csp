@@ -32,47 +32,41 @@ export default defineContentScript({
           console.log(
             '✅ URL sent to server successfully via background script'
           );
-          if (response.requiresAuth) {
-            console.log(
-              '🔒 Page requires authentication, capturing rendered content...'
-            );
+        } else if (response.requiresAuth) {
+          console.log(
+            '🔒 Page requires authentication, capturing rendered content...'
+          );
 
-            // Strategy 1: Detect and wait for SPA frameworks
-            await waitForSPAFrameworks();
+          // Strategy 1: Detect and wait for SPA frameworks
+          await waitForSPAFrameworks();
 
-            // Strategy 2: Wait for key content elements to appear
-            await waitForKeyElements();
+          // Strategy 2: Wait for key content elements to appear
+          await waitForKeyElements();
 
-            // Strategy 3: Wait for content to stabilize
-            await waitForContentToLoad();
+          // Strategy 3: Wait for content to stabilize
+          await waitForContentToLoad();
 
-            // Strategy 4: Get the fully rendered HTML
-            const html = getRenderedHTML();
-            console.log('📄 Captured rendered HTML length:', html);
+          // Strategy 4: Get the fully rendered HTML
+          const html = getRenderedHTML();
+          console.log('📄 Captured rendered HTML length:', html);
 
-            // Optional: Extract meaningful text content for analysis
-            const textContent = document.body.innerText || '';
-            const wordCount = textContent
-              .split(/\s+/)
-              .filter(word => word.length > 0).length;
-            console.log('📄 Text content word count:', wordCount);
+          // Optional: Extract meaningful text content for analysis
+          const textContent = document.body.innerText || '';
+          const wordCount = textContent
+            .split(/\s+/)
+            .filter(word => word.length > 0).length;
+          console.log('📄 Text content word count:', wordCount);
 
-            // You can now send this HTML to your backend for processing
-            // For example, you could send it back to the background script:
-            /*
-            try {
-              await browser.runtime.sendMessage({
-                type: 'RENDERED_HTML_CAPTURED',
-                url: url,
-                html: html,
-                textContent: textContent,
-                wordCount: wordCount
-              });
-            } catch (error) {
-              console.error('Failed to send rendered HTML to background:', error);
-            }
-            */
-          }
+          const response = await browser.runtime.sendMessage({
+            type: 'STORE_HTML_URL',
+            url: url,
+            html: html,
+          });
+
+          console.log(
+            'Received response from background script for HTML storage:',
+            response
+          );
         } else {
           console.log(
             '❌ Failed to send URL via background script:',

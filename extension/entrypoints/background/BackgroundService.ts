@@ -1,6 +1,8 @@
-interface ScrapeResponse {
+export interface ScrapeResponse {
   url: string;
+  type: 'url' | 'html';
   validationStatus?: 'pending' | 'validated' | 'invalid';
+  html?: string;
 }
 
 export class BackgroundService {
@@ -96,25 +98,6 @@ export class BackgroundService {
       console.error('Failed to check URL authentication:', error);
       // Network errors could indicate auth issues, but could also be network problems
       return false;
-    }
-  }
-
-  async getPageViaFetch(url: string): Promise<string | null> {
-    try {
-      const response = await fetch(url);
-      console.log('📊 Fetch response status for', url, ':', response);
-      if (response.ok) {
-        const text = await response.text();
-        console.log('✅ Fetched page content for', text);
-        console.log('Body: ', response.body);
-        return text;
-      } else {
-        console.error('Failed to fetch page, status:', response.status);
-        return null;
-      }
-    } catch (error) {
-      console.error('Error fetching page:', error);
-      return null;
     }
   }
 
@@ -216,11 +199,22 @@ export class BackgroundService {
     }
   }
 
-  async storeUrlForLater(url: string, tabId?: number) {
+  async storeUrlForLater(url: string, html?: string, tabId?: number) {
     const trackingEnabled = await this.isTrackingEnabled();
     if (!trackingEnabled) {
       console.log('🚫 URL tracking disabled, skipping:', url);
       return { success: false, error: 'URL tracking is disabled' };
+    }
+
+    const urlRequiresAuth =
+      !html && (await this.checkIfUrlRequiresAuthentication(url));
+    if (urlRequiresAuth) {
+      console.log('🚫 URL requires authentication, skipping:', url);
+      return {
+        success: false,
+        requiresAuth: true,
+        error: 'URL requires authentication',
+      };
     }
 
     console.log('📦 Storing URL for later batch sending:', url);
@@ -234,10 +228,14 @@ export class BackgroundService {
         return { success: true };
       }
 
+      console.log('What is the type? ', url, html);
+
       // Create a response entry for the URL without sending to server
       const scrapeResponse: ScrapeResponse = {
         url,
+        type: html ? 'html' : 'url',
         validationStatus: 'pending',
+        html,
       };
 
       await this.storeResponse(scrapeResponse);
@@ -279,6 +277,13 @@ export class BackgroundService {
       const currentPrompt = await this.getPropmpt();
       console.log('📝 Current prompt:', currentPrompt);
 
+      const validatedUrls = validatedResponses.filter(r => r.type === 'url');
+      const validatedHtmls = validatedResponses.filter(r => r.type === 'html');
+
+      console.log(
+        `🌐 Preparing to send ${validatedUrls.length} URLs and ${validatedHtmls.length} HTML contents to server`
+      );
+
       // Send all validated responses to the server
       console.log('🌐 Making HTTP request to localhost:8000/api/process');
       const response = await fetch('http://localhost:8000/api/process', {
@@ -287,8 +292,11 @@ export class BackgroundService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          urls: validatedResponses.map(r => ({
+          urls: validatedUrls.map(r => ({
             url: r.url,
+          })),
+          htmls: validatedHtmls.map(r => ({
+            html: r.html,
           })),
           prompt: currentPrompt || '',
         }),
@@ -343,35 +351,40 @@ export class BackgroundService {
     if (message.type === 'URL_CHANGED') {
       console.log('📨 Received URL change from content script:', message.url);
 
-      this.checkIfUrlRequiresAuthentication(message.url)
-        .then(requiresAuth => {
+      console.log('Pre storing URL for later...');
+
+      this.storeUrlForLater(message.url, undefined, sender.tab?.id)
+        .then(result => {
           console.log(
-            '🔒 URL requires authentication:',
-            message.url,
-            requiresAuth
+            '📤 Sending response back to content script:',
+            result,
+            result.requiresAuth
           );
-          this.getPageViaFetch(message.url).then(pageContent => {
-            console.log('Fetched page via fetch');
-          });
-          this.storeUrlForLater(message.url, sender.tab?.id)
-            .then(result => {
-              console.log(
-                '📤 Sending response back to content script:',
-                result,
-                requiresAuth
-              );
-              sendResponse({ ...result, requiresAuth });
-            })
-            .catch(error => {
-              console.error('💥 Error in message handler:', error);
-              sendResponse({ success: false, error: error.message });
-            });
+          sendResponse({ ...result, requiresAuth: result.requiresAuth });
         })
         .catch(error => {
-          console.error('💥 Error checking URL authentication:', error);
-          return false;
+          console.error('💥 Error in message handler:', error);
+          sendResponse({ success: false, error: error.message });
         });
 
+      return true;
+    }
+
+    if (message.type === 'STORE_HTML_URL') {
+      console.log(
+        '📨 Received STORE_HTML_URL from content script:',
+        message.url,
+        message.html
+      );
+      this.storeUrlForLater(message.url, message.html, sender.tab?.id)
+        .then(result => {
+          console.log('📤 Sending response back to content script:', result);
+          sendResponse(result);
+        })
+        .catch(error => {
+          console.error('💥 Error in STORE_HTML_URL handler:', error);
+          sendResponse({ success: false, error: error.message });
+        });
       return true;
     }
 
@@ -397,6 +410,7 @@ export class BackgroundService {
 
       this.getStoredResponses()
         .then(responses => {
+          console.log('📦 Loaded stored responses:', responses);
           console.log(
             '📤 Sending stored responses back to popup:',
             responses.length

@@ -1,17 +1,15 @@
 import { useState, useEffect } from 'react';
 import { browser } from 'wxt/browser';
-
-interface ScrapeResponse {
-  url: string;
-  validationStatus?: 'pending' | 'validated' | 'invalid';
-}
+import { ScrapeResponse } from '../background/BackgroundService';
+import { Tab } from './App';
 
 interface UrlsListProps {
   isVisible: boolean;
   onValidationUpdate?: () => void;
+  tab: Tab;
 }
 
-function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
+function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
   const [responses, setResponses] = useState<ScrapeResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [validatingIds, setValidatingIds] = useState<Set<string>>(new Set());
@@ -24,12 +22,20 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
 
     setIsLoading(true);
     try {
-      const result = await browser.runtime.sendMessage({
+      const result = await browser.runtime.sendMessage<
+        any,
+        { success: boolean; error: any; responses: ScrapeResponse[] }
+      >({
         type: 'GET_RESPONSES',
       });
 
+      console.log('Load responses result:', result);
+
       if (result.success) {
-        setResponses(result.responses || []);
+        const filterPerType = (result.responses || []).filter(r =>
+          tab === Tab.URLS ? r.type === 'url' : r.type === 'html'
+        );
+        setResponses(filterPerType);
       } else {
         console.error('Failed to load responses:', result.error);
       }
@@ -40,7 +46,10 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
     }
   };
 
-  const handleUpdateValidation = async (responseUrl: string, validationStatus: 'validated' | 'invalid') => {
+  const handleUpdateValidation = async (
+    responseUrl: string,
+    validationStatus: 'validated' | 'invalid'
+  ) => {
     setValidatingIds(prev => new Set(prev).add(responseUrl));
 
     try {
@@ -52,11 +61,11 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
 
       if (result.success) {
         // Update local state immediately
-        setResponses(prev => prev.map(r =>
-          r.url === responseUrl
-            ? { ...r, validationStatus }
-            : r
-        ));
+        setResponses(prev =>
+          prev.map(r =>
+            r.url === responseUrl ? { ...r, validationStatus } : r
+          )
+        );
 
         // Notify parent of validation update
         onValidationUpdate?.();
@@ -104,7 +113,9 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
   };
 
   const handleValidateAll = async () => {
-    const pendingResponses = responses.filter(r => r.validationStatus === 'pending');
+    const pendingResponses = responses.filter(
+      r => r.validationStatus === 'pending'
+    );
     if (pendingResponses.length === 0) return;
 
     setIsValidatingAll(true);
@@ -116,11 +127,13 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
 
       if (result.success) {
         // Update local state to mark all pending responses as validated
-        setResponses(prev => prev.map(r =>
-          r.validationStatus === 'pending'
-            ? { ...r, validationStatus: 'validated' as const }
-            : r
-        ));
+        setResponses(prev =>
+          prev.map(r =>
+            r.validationStatus === 'pending'
+              ? { ...r, validationStatus: 'validated' as const }
+              : r
+          )
+        );
 
         // Notify parent of update
         onValidationUpdate?.();
@@ -162,6 +175,7 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
 
   // Auto-refresh when tab becomes visible or every 30 seconds when visible
   useEffect(() => {
+    console.log('UrlsList visibility changed:', isVisible, tab);
     if (!isVisible) return;
 
     const interval = setInterval(() => {
@@ -169,23 +183,29 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
     }, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
-  }, [isVisible]);
+  }, [isVisible, tab]);
 
   const getValidationStatusColor = (status?: string) => {
     switch (status) {
-      case 'validated': return '#28a745';
-      case 'invalid': return '#dc3545';
+      case 'validated':
+        return '#28a745';
+      case 'invalid':
+        return '#dc3545';
       case 'pending':
-      default: return '#ffc107';
+      default:
+        return '#ffc107';
     }
   };
 
   const getValidationStatusText = (status?: string) => {
     switch (status) {
-      case 'validated': return '✅ Validated';
-      case 'invalid': return '❌ Invalid';
+      case 'validated':
+        return '✅ Validated';
+      case 'invalid':
+        return '❌ Invalid';
       case 'pending':
-      default: return '⏳ Pending Validation';
+      default:
+        return '⏳ Pending Validation';
     }
   };
 
@@ -196,7 +216,7 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
 
   useEffect(() => {
     loadResponses();
-  }, [isVisible]);
+  }, [isVisible, tab]);
 
   if (!isVisible) {
     return null;
@@ -210,7 +230,12 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
             <button
               className="btn-primary"
               onClick={handleValidateAll}
-              disabled={isValidatingAll || isRemovingAll || responses.filter(r => r.validationStatus === 'pending').length === 0}
+              disabled={
+                isValidatingAll ||
+                isRemovingAll ||
+                responses.filter(r => r.validationStatus === 'pending')
+                  .length === 0
+              }
               title="Validate all pending URLs"
             >
               {isValidatingAll ? '⟳' : '✅'} Validate All
@@ -228,9 +253,7 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
       </div>
 
       {isLoading && responses.length === 0 ? (
-        <div className="loading-state">
-          Loading URLs...
-        </div>
+        <div className="loading-state">Loading URLs...</div>
       ) : responses.length === 0 ? (
         <div className="empty-state">
           No URLs stored yet. Visit some pages to see them here!
@@ -243,7 +266,9 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
                 <div className="response-url" title={response.url}>
                   {truncateUrl(response.url)}
                 </div>
-                <div className={`validation-${response.validationStatus || 'pending'}`}>
+                <div
+                  className={`validation-${response.validationStatus || 'pending'}`}
+                >
                   {getValidationStatusText(response.validationStatus)}
                 </div>
               </div>
@@ -253,15 +278,25 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
                   <>
                     <button
                       className="btn-primary"
-                      onClick={() => handleUpdateValidation(response.url, 'validated')}
-                      disabled={validatingIds.has(response.url) || removingIds.has(response.url)}
+                      onClick={() =>
+                        handleUpdateValidation(response.url, 'validated')
+                      }
+                      disabled={
+                        validatingIds.has(response.url) ||
+                        removingIds.has(response.url)
+                      }
                     >
                       {validatingIds.has(response.url) ? '⟳' : '✅'} Valid
                     </button>
                     <button
                       className="btn-warning"
-                      onClick={() => handleUpdateValidation(response.url, 'invalid')}
-                      disabled={validatingIds.has(response.url) || removingIds.has(response.url)}
+                      onClick={() =>
+                        handleUpdateValidation(response.url, 'invalid')
+                      }
+                      disabled={
+                        validatingIds.has(response.url) ||
+                        removingIds.has(response.url)
+                      }
                     >
                       {validatingIds.has(response.url) ? '⟳' : '❌'} Invalid
                     </button>
@@ -270,7 +305,10 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
                 <button
                   className="btn-danger"
                   onClick={() => handleRemoveResponse(response.url)}
-                  disabled={validatingIds.has(response.url) || removingIds.has(response.url)}
+                  disabled={
+                    validatingIds.has(response.url) ||
+                    removingIds.has(response.url)
+                  }
                   title="Remove this URL from storage"
                 >
                   {removingIds.has(response.url) ? '⟳' : '🗑️'} Remove
