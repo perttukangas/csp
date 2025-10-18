@@ -99,6 +99,25 @@ export class BackgroundService {
     }
   }
 
+  async getPageViaFetch(url: string): Promise<string | null> {
+    try {
+      const response = await fetch(url);
+      console.log('📊 Fetch response status for', url, ':', response);
+      if (response.ok) {
+        const text = await response.text();
+        console.log('✅ Fetched page content for', text);
+        console.log('Body: ', response.body);
+        return text;
+      } else {
+        console.error('Failed to fetch page, status:', response.status);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error fetching page:', error);
+      return null;
+    }
+  }
+
   async getStoredResponses(): Promise<ScrapeResponse[]> {
     try {
       const result = await browser.storage.sync.get(['storedResponses']);
@@ -324,28 +343,33 @@ export class BackgroundService {
     if (message.type === 'URL_CHANGED') {
       console.log('📨 Received URL change from content script:', message.url);
 
-      const requiresAuth = this.checkIfUrlRequiresAuthentication(message.url)
+      this.checkIfUrlRequiresAuthentication(message.url)
         .then(requiresAuth => {
           console.log(
             '🔒 URL requires authentication:',
             message.url,
             requiresAuth
           );
-          return requiresAuth;
+          this.getPageViaFetch(message.url).then(pageContent => {
+            console.log('Fetched page via fetch');
+          });
+          this.storeUrlForLater(message.url, sender.tab?.id)
+            .then(result => {
+              console.log(
+                '📤 Sending response back to content script:',
+                result,
+                requiresAuth
+              );
+              sendResponse({ ...result, requiresAuth });
+            })
+            .catch(error => {
+              console.error('💥 Error in message handler:', error);
+              sendResponse({ success: false, error: error.message });
+            });
         })
         .catch(error => {
           console.error('💥 Error checking URL authentication:', error);
           return false;
-        });
-
-      this.storeUrlForLater(message.url, sender.tab?.id)
-        .then(result => {
-          console.log('📤 Sending response back to content script:', result);
-          sendResponse({ ...result, requiresAuth });
-        })
-        .catch(error => {
-          console.error('💥 Error in message handler:', error);
-          sendResponse({ success: false, error: error.message });
         });
 
       return true;
