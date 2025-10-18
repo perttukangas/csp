@@ -14,6 +14,91 @@ export class BackgroundService {
     }
   }
 
+  async checkIfUrlRequiresAuthentication(url: string): Promise<boolean> {
+    try {
+      console.log('🔍 Checking if URL requires authentication:', url);
+
+      // Make request WITHOUT any credentials, cookies, or auth headers
+      const response = await fetch(url, {
+        method: 'GET',
+        credentials: 'omit', // This ensures NO cookies or auth headers are sent
+        cache: 'no-cache', // Don't use cached responses
+        headers: {
+          // Explicitly set minimal headers to avoid any auth-related headers
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          Accept:
+            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          Connection: 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+        },
+        redirect: 'manual', // Don't follow redirects automatically
+      });
+
+      console.log('📊 Response status:', response.status);
+      console.log('📊 Response type:', response.type);
+      console.log('📊 Response redirected:', response.redirected);
+
+      // Check for authentication requirements
+      if (response.status === 401) {
+        console.log('🔒 URL requires authentication (401 Unauthorized):', url);
+        return true;
+      }
+
+      if (response.status === 403) {
+        console.log('🔒 URL requires authentication (403 Forbidden):', url);
+        return true;
+      }
+
+      // Check for redirects to login pages (when redirect is manual)
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (
+          location &&
+          (location.includes('login') ||
+            location.includes('auth') ||
+            location.includes('signin'))
+        ) {
+          console.log(
+            '🔒 URL redirects to authentication page:',
+            url,
+            '→',
+            location
+          );
+          return true;
+        }
+      }
+
+      // Check for WWW-Authenticate header
+      if (response.headers.get('www-authenticate')) {
+        console.log(
+          '🔒 URL requires authentication (WWW-Authenticate header present):',
+          url
+        );
+        return true;
+      }
+
+      if (response.ok) {
+        console.log('✅ URL is accessible without authentication:', url);
+        return false;
+      }
+
+      // If we get here, it's some other error (not necessarily auth-related)
+      // Assume that it requires auth. For example, Github returns 404 for private repos.
+      console.log(
+        '⚠️ URL returned non-OK status but not clearly auth-related:',
+        response.status
+      );
+      return true;
+    } catch (error) {
+      console.error('Failed to check URL authentication:', error);
+      // Network errors could indicate auth issues, but could also be network problems
+      return false;
+    }
+  }
+
   async getStoredResponses(): Promise<ScrapeResponse[]> {
     try {
       const result = await browser.storage.sync.get(['storedResponses']);
@@ -35,7 +120,10 @@ export class BackgroundService {
     }
   }
 
-  async updateValidationStatus(responseUrl: string, validationStatus: 'validated' | 'invalid'): Promise<boolean> {
+  async updateValidationStatus(
+    responseUrl: string,
+    validationStatus: 'validated' | 'invalid'
+  ): Promise<boolean> {
     try {
       const existingResponses = await this.getStoredResponses();
       const updatedResponses = existingResponses.map(response =>
@@ -44,7 +132,11 @@ export class BackgroundService {
           : response
       );
       await browser.storage.sync.set({ storedResponses: updatedResponses });
-      console.log('✅ Validation status updated successfully:', responseUrl, validationStatus);
+      console.log(
+        '✅ Validation status updated successfully:',
+        responseUrl,
+        validationStatus
+      );
       return true;
     } catch (error) {
       console.error('Failed to update validation status:', error);
@@ -55,7 +147,9 @@ export class BackgroundService {
   async removeResponse(responseUrl: string): Promise<boolean> {
     try {
       const existingResponses = await this.getStoredResponses();
-      const updatedResponses = existingResponses.filter(response => response.url !== responseUrl);
+      const updatedResponses = existingResponses.filter(
+        response => response.url !== responseUrl
+      );
       await browser.storage.sync.set({ storedResponses: updatedResponses });
       console.log('🗑️ Response removed successfully:', responseUrl);
       return true;
@@ -124,7 +218,7 @@ export class BackgroundService {
       // Create a response entry for the URL without sending to server
       const scrapeResponse: ScrapeResponse = {
         url,
-        validationStatus: 'pending'
+        validationStatus: 'pending',
       };
 
       await this.storeResponse(scrapeResponse);
@@ -138,13 +232,19 @@ export class BackgroundService {
     }
   }
 
-  async sendValidatedResponsesToServer(): Promise<{ success: boolean; error?: string; sent?: number }> {
+  async sendValidatedResponsesToServer(): Promise<{
+    success: boolean;
+    error?: string;
+    sent?: number;
+  }> {
     console.log('🚀 Starting sendValidatedResponsesToServer()');
     try {
       const responses = await this.getStoredResponses();
       console.log('📦 Total stored responses:', responses.length);
 
-      const validatedResponses = responses.filter(r => r.validationStatus === 'validated');
+      const validatedResponses = responses.filter(
+        r => r.validationStatus === 'validated'
+      );
       console.log('✅ Validated responses found:', validatedResponses.length);
 
       if (validatedResponses.length === 0) {
@@ -152,7 +252,9 @@ export class BackgroundService {
         return { success: false, error: 'No validated responses to send' };
       }
 
-      console.log(`📤 Sending ${validatedResponses.length} validated responses to server`);
+      console.log(
+        `📤 Sending ${validatedResponses.length} validated responses to server`
+      );
 
       // Get the current prompt
       const currentPrompt = await this.getPropmpt();
@@ -167,17 +269,25 @@ export class BackgroundService {
         },
         body: JSON.stringify({
           urls: validatedResponses.map(r => ({
-            url: r.url
+            url: r.url,
           })),
-          prompt: currentPrompt || ''
+          prompt: currentPrompt || '',
         }),
       });
 
-      console.log('📡 HTTP response received. Status:', response.status, 'OK:', response.ok);
+      console.log(
+        '📡 HTTP response received. Status:',
+        response.status,
+        'OK:',
+        response.ok
+      );
 
       if (response.ok) {
         const responseText = await response.text();
-        console.log('✅ Validated responses sent to server successfully. Response:', responseText);
+        console.log(
+          '✅ Validated responses sent to server successfully. Response:',
+          responseText
+        );
         return { success: true, sent: validatedResponses.length };
       } else {
         console.error('❌ Server returned error:', response.status);
@@ -197,16 +307,41 @@ export class BackgroundService {
     sender: globalThis.Browser.runtime.MessageSender,
     sendResponse: (response: any) => void
   ) {
-    console.log('🎯 BackgroundService.handleMessage called with:', message.type, message);
-    console.log('📍 Message details - Type:', message.type, 'Sender:', sender.tab?.id, 'Full message:', JSON.stringify(message));
+    console.log(
+      '🎯 BackgroundService.handleMessage called with:',
+      message.type,
+      message
+    );
+    console.log(
+      '📍 Message details - Type:',
+      message.type,
+      'Sender:',
+      sender.tab?.id,
+      'Full message:',
+      JSON.stringify(message)
+    );
 
     if (message.type === 'URL_CHANGED') {
       console.log('📨 Received URL change from content script:', message.url);
 
+      const requiresAuth = this.checkIfUrlRequiresAuthentication(message.url)
+        .then(requiresAuth => {
+          console.log(
+            '🔒 URL requires authentication:',
+            message.url,
+            requiresAuth
+          );
+          return requiresAuth;
+        })
+        .catch(error => {
+          console.error('💥 Error checking URL authentication:', error);
+          return false;
+        });
+
       this.storeUrlForLater(message.url, sender.tab?.id)
         .then(result => {
           console.log('📤 Sending response back to content script:', result);
-          sendResponse(result);
+          sendResponse({ ...result, requiresAuth });
         })
         .catch(error => {
           console.error('💥 Error in message handler:', error);
@@ -238,7 +373,10 @@ export class BackgroundService {
 
       this.getStoredResponses()
         .then(responses => {
-          console.log('📤 Sending stored responses back to popup:', responses.length);
+          console.log(
+            '📤 Sending stored responses back to popup:',
+            responses.length
+          );
           sendResponse({ success: true, responses });
         })
         .catch(error => {
@@ -267,7 +405,11 @@ export class BackgroundService {
     }
 
     if (message.type === 'UPDATE_VALIDATION') {
-      console.log('📨 Received request to update validation:', message.responseUrl, message.validationStatus);
+      console.log(
+        '📨 Received request to update validation:',
+        message.responseUrl,
+        message.validationStatus
+      );
 
       this.updateValidationStatus(message.responseUrl, message.validationStatus)
         .then(success => {
@@ -283,7 +425,10 @@ export class BackgroundService {
     }
 
     if (message.type === 'REMOVE_RESPONSE') {
-      console.log('📨 Received request to remove response:', message.responseUrl);
+      console.log(
+        '📨 Received request to remove response:',
+        message.responseUrl
+      );
 
       this.removeResponse(message.responseUrl)
         .then(success => {

@@ -3,6 +3,15 @@ import { BackgroundService } from './BackgroundService';
 export default defineBackground({
   type: 'module',
   main() {
+    console.log('🚀 BACKGROUND SCRIPT LOADED!', new Date().toISOString());
+    console.warn(
+      'Background script is running - check chrome://extensions/ -> Inspect views'
+    );
+
+    // Set a visible badge to confirm the script is running
+    browser.action?.setBadgeText({ text: '✓' });
+    browser.action?.setBadgeBackgroundColor({ color: '#4CAF50' });
+
     const backgroundService = new BackgroundService();
 
     // Bind the handleMessage method properly to maintain 'this' context
