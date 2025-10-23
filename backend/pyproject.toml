@@ -7,9 +7,9 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi[standard]>=0.117.1",
     "pydantic-settings>=2.10.1",
-    "google-generativeai>=0.8.0",
     "lxml>=6.0.2",
-    "requests>=2.31.0"
+    "pandas>=2.3.3",
+    "google-genai>=1.45.0",
 ]
 
 [dependency-groups]
@@ -17,7 +17,10 @@ dev = [
     "mypy>=1.18.2",
     "pytest>=8.4.2",
     "ruff>=0.13.1",
+    "requests>=2.31.0",
     "types-requests>=2.32.4.20250913",
+    "lxml-stubs>=0.5.1",
+    "pandas-stubs",
 ]
 
 [tool.ruff]
