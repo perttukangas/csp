@@ -242,15 +242,18 @@ export const getRenderedHTML = () => {
     console.warn(
       `⚠️ HTML still too large (${cleanedHTML.length} bytes), truncating to ${maxSize} bytes`
     );
-    
+
     // Try to truncate at a reasonable point (end of a tag)
     let truncatePoint = maxSize;
     const lastCloseTag = cleanedHTML.lastIndexOf('>', maxSize);
-    if (lastCloseTag > maxSize - 200) { // If close to our target, use it
+    if (lastCloseTag > maxSize - 200) {
+      // If close to our target, use it
       truncatePoint = lastCloseTag + 1;
     }
-    
-    const truncatedHTML = cleanedHTML.substring(0, truncatePoint) + '<!-- [TRUNCATED FOR STORAGE] -->';
+
+    const truncatedHTML =
+      cleanedHTML.substring(0, truncatePoint) +
+      '<!-- [TRUNCATED FOR STORAGE] -->';
     console.log(`📄 HTML truncated at position ${truncatePoint}`);
     return truncatedHTML;
   }
