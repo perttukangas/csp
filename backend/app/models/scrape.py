@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,9 +23,7 @@ class ScrapeRequest(BaseModel):
 
     url: str = Field(..., description='The URL of the page to scrape')
     content: str = Field(..., description='The HTML content or DOM tree of the page')
-    input_format: InputFormat = Field(
-        default=InputFormat.HTML, description='Format of the input content (html or dom)'
-    )
+    input_format: InputFormat = Field(default=InputFormat.HTML, description='Format of the input content (html or dom)')
     user_request: str = Field(..., description='Natural language description of what data to extract')
     output_format: OutputFormat = Field(
         default=OutputFormat.BOTH, description='Desired output format for selectors (xpath, css, or both)'
@@ -36,7 +33,12 @@ class ScrapeRequest(BaseModel):
         json_schema_extra = {
             'example': {
                 'url': 'https://example.com/products',
-                'content': '<html><body><div class="product"><h1>Product Name</h1><span class="price">$99.99</span></div></body></html>',
+                'content': (
+                    '<html><body><div class="product">'
+                    '<h1>Product Name</h1>'
+                    '<span class="price">$99.99</span>'
+                    '</div></body></html>'
+                ),
                 'input_format': 'html',
                 'user_request': 'Extract product name and price',
                 'output_format': 'both',
@@ -47,8 +49,8 @@ class ScrapeRequest(BaseModel):
 class Selectors(BaseModel):
     """Selectors for a specific field"""
 
-    xpath: Optional[str] = Field(None, description='XPath selector for the field')
-    css: Optional[str] = Field(None, description='CSS selector for the field')
+    xpath: str | None = Field(None, description='XPath selector for the field')
+    css: str | None = Field(None, description='CSS selector for the field')
 
 
 class ScrapeResponse(BaseModel):
@@ -56,7 +58,7 @@ class ScrapeResponse(BaseModel):
 
     url: str = Field(..., description='The URL that was analyzed')
     selectors: dict[str, Selectors] = Field(..., description='Generated selectors for each requested field')
-    raw_output: Optional[str] = Field(None, description='Raw output from the AI model (for debugging)')
+    raw_output: str | None = Field(None, description='Raw output from the AI model (for debugging)')
 
     class Config:
         json_schema_extra = {
@@ -74,15 +76,21 @@ class ErrorResponse(BaseModel):
     """Error response model"""
 
     error: str = Field(..., description='Error message')
-    details: Optional[str] = Field(None, description='Additional error details')
+    details: str | None = Field(None, description='Additional error details')
 
 
 class ProcessUrlRequest(BaseModel):
     """A single URL to be processed."""
+
     url: str
+
 
 class ProcessRequest(BaseModel):
     """Request model for the main processing endpoint."""
+
     urls: list[ProcessUrlRequest]
     prompt: str
-    depth: int = Field(default=1, gt=0, description="How many link levels to follow. 1 means no crawling.")
+    depth: int = Field(default=1, gt=0, description='How many link levels to follow. 1 means no crawling.')
+    use_validation_agent: bool | None = Field(
+        default=False, description='Use a second agent to analyze and refine results.'
+    )

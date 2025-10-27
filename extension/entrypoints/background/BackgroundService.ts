@@ -1,3 +1,5 @@
+import { extensionStorage } from '../../utils/storage';
+
 export interface ScrapeResponse {
   url: string;
   type: 'url' | 'html';
@@ -8,11 +10,11 @@ export interface ScrapeResponse {
 export class BackgroundService {
   async getPropmpt() {
     try {
-      const result = await browser.storage.sync.get(['prompt']);
-      return result.prompt || '';
+      const prompt = await extensionStorage.get('prompt', '');
+      return prompt;
     } catch (error) {
       console.error('Failed to get prompt:', error);
-      return undefined;
+      return '';
     }
   }
 
@@ -103,17 +105,15 @@ export class BackgroundService {
 
   async getStoredResponses(): Promise<ScrapeResponse[]> {
     try {
-      // Try sync storage first for backward compatibility
-      const syncResult = await browser.storage.sync.get(['storedResponses']);
-      let responses = syncResult.storedResponses || [];
+      // Get URL-only responses from extensionStorage (sync)
+      const urlResponses = await extensionStorage.get('storedResponses', []);
 
-      // Also get HTML responses from local storage
+      // Get HTML responses from local storage (has higher limits)
       const localResult = await browser.storage.local.get(['htmlResponses']);
       const htmlResponses = localResult.htmlResponses || [];
 
       // Merge both arrays
-      responses = [...responses, ...htmlResponses];
-
+      const responses = [...urlResponses, ...htmlResponses];
       return responses;
     } catch (error) {
       console.error('Failed to get stored responses:', error);
@@ -135,10 +135,13 @@ export class BackgroundService {
           response.url
         );
       } else {
-        // Store URL-only responses in sync storage
-        const existingResponses = await this.getStoredUrlResponses();
+        // Store URL-only responses using extensionStorage (sync)
+        const existingResponses = await extensionStorage.get(
+          'storedResponses',
+          []
+        );
         const updatedResponses = [...existingResponses, response];
-        await browser.storage.sync.set({ storedResponses: updatedResponses });
+        await extensionStorage.set('storedResponses', updatedResponses);
         console.log(
           '📦 URL response stored successfully in sync storage:',
           response.url
@@ -152,8 +155,8 @@ export class BackgroundService {
 
   private async getStoredUrlResponses(): Promise<ScrapeResponse[]> {
     try {
-      const result = await browser.storage.sync.get(['storedResponses']);
-      return result.storedResponses || [];
+      const responses = await extensionStorage.get('storedResponses', []);
+      return responses;
     } catch (error) {
       console.error('Failed to get stored URL responses:', error);
       return [];
@@ -210,9 +213,7 @@ export class BackgroundService {
       if (
         JSON.stringify(urlResponses) !== JSON.stringify(updatedUrlResponses)
       ) {
-        await browser.storage.sync.set({
-          storedResponses: updatedUrlResponses,
-        });
+        await extensionStorage.set('storedResponses', updatedUrlResponses);
         updated = true;
       }
 
@@ -259,9 +260,7 @@ export class BackgroundService {
       );
 
       if (urlResponses.length !== updatedUrlResponses.length) {
-        await browser.storage.sync.set({
-          storedResponses: updatedUrlResponses,
-        });
+        await extensionStorage.set('storedResponses', updatedUrlResponses);
         removed = true;
       }
 
@@ -292,7 +291,7 @@ export class BackgroundService {
   async removeAllResponses(): Promise<boolean> {
     try {
       // Clear both storage types
-      await browser.storage.sync.set({ storedResponses: [] });
+      await extensionStorage.set('storedResponses', []);
       await browser.storage.local.set({ htmlResponses: [] });
       console.log('🗑️ All responses removed successfully from both storages');
       return true;
@@ -311,7 +310,7 @@ export class BackgroundService {
           ? { ...response, validationStatus: 'validated' as const }
           : response
       );
-      await browser.storage.sync.set({ storedResponses: updatedUrlResponses });
+      await extensionStorage.set('storedResponses', updatedUrlResponses);
 
       // Update HTML responses in local storage
       const htmlResponses = await this.getStoredHtmlResponses();
@@ -334,8 +333,8 @@ export class BackgroundService {
 
   async isTrackingEnabled(): Promise<boolean> {
     try {
-      const result = await browser.storage.sync.get(['urlTrackingEnabled']);
-      return result.urlTrackingEnabled || false;
+      const enabled = await extensionStorage.get('urlTrackingEnabled', false);
+      return enabled;
     } catch (error) {
       console.error('Failed to check tracking status:', error);
       return false;
@@ -428,8 +427,10 @@ export class BackgroundService {
       );
 
       // Send all validated responses to the server
-      console.log('🌐 Making HTTP request to localhost:8000/api/process');
-      const response = await fetch('http://localhost:8000/api/process', {
+      const backendUrl =
+        import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+      console.log(`🌐 Making HTTP request to ${backendUrl}/api/process`);
+      const response = await fetch(`${backendUrl}/api/process`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,27 +1,19 @@
 import json
-from typing import Optional
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from app.core.config import settings
 from app.models.scrape import InputFormat, OutputFormat, ScrapeRequest, ScrapeResponse, Selectors
 
+# ------------------------------------------------------------
+# 🔹 Helper functions for prompt text
+# ------------------------------------------------------------
 
-class GeminiAgentService:
-    """Service for interacting with Gemini AI to generate web scraping selectors"""
 
-    def __init__(self):
-        """Initialize the Gemini agent with API key from settings"""
-        if not settings.gemini_api_key:
-            raise ValueError('GEMINI_API_KEY is not configured. Please set it in your .env file.')
-
-        genai.configure(api_key=settings.gemini_api_key)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
-
-    def _build_system_prompt(self, output_format: OutputFormat) -> str:
-        """Build the system prompt based on desired output format"""
-
-        base_prompt = """You are an expert web scraping AI agent that generates precise selectors from HTML/DOM content.
+def get_base_prompt() -> str:
+    """Base instructions for Gemini – defines its role and task."""
+    return """You are an expert web scraping AI agent that generates precise selectors from HTML/DOM content.
 
 You will receive:
   - A URL (for context)
@@ -31,14 +23,16 @@ You will receive:
 Your tasks:
   1. Carefully analyze the HTML/DOM structure
   2. Identify the exact elements that match the user's request
-  3. Convert field names to snake_case (e.g., "Product Name" → "product_name")
+  3. Convert field names to snake_case (e.g., 'Product Name' → 'product_name')
   4. Generate precise, stable, and unambiguous selectors
   5. Prefer selectors that are resilient to minor page changes (use semantic attributes when available)
 """
 
-        if output_format == OutputFormat.XPATH:
-            format_instructions = """
-Output Format:
+
+def get_format_instructions(fmt: OutputFormat) -> str:
+    """Returns format-specific output instructions for the selector type."""
+    if fmt == OutputFormat.XPATH:
+        return """Output Format:
 Return ONLY valid JSON in this exact schema (no markdown, no explanations):
 {
   "selectors": {
@@ -54,9 +48,9 @@ XPath Guidelines:
 - Prefer class names and IDs when stable
 - Use contains() for partial matches when appropriate
 """
-        elif output_format == OutputFormat.CSS:
-            format_instructions = """
-Output Format:
+
+    if fmt == OutputFormat.CSS:
+        return """Output Format:
 Return ONLY valid JSON in this exact schema (no markdown, no explanations):
 {
   "selectors": {
@@ -72,9 +66,9 @@ CSS Guidelines:
 - Prefer direct child (>) over descendant when structure is stable
 - Use :nth-child() or :nth-of-type() only when necessary
 """
-        else:  # BOTH
-            format_instructions = """
-Output Format:
+
+    # BOTH
+    return """Output Format:
 Return ONLY valid JSON in this exact schema (no markdown, no explanations):
 {
   "selectors": {
@@ -93,106 +87,119 @@ Selector Guidelines:
 - Prefer stable, semantic selectors over brittle positional ones
 """
 
-        return base_prompt + format_instructions
 
-    def _build_user_prompt(self, request: ScrapeRequest) -> str:
-        """Build the user prompt with the actual request data"""
+# ------------------------------------------------------------
+# 🔹 Main service class
+# ------------------------------------------------------------
 
+
+class GeminiAgentService:
+    """Service that interacts with Gemini to generate web scraping selectors."""
+
+    def __init__(self):
+        if not settings.gemini_api_key:
+            raise ValueError('GEMINI_API_KEY is not configured. Please set it in your .env file.')
+        self.client = genai.Client(api_key=settings.gemini_api_key)
+        self.model_name = 'models/gemini-2.5-flash'
+
+    # -----------------------------
+    # Prompt construction
+    # -----------------------------
+
+    def _build_system_prompt(self, output_format: OutputFormat) -> types.Content:
+        """Builds the system prompt describing Gemini’s role and expected output."""
+        full_prompt = get_base_prompt() + get_format_instructions(output_format)
+        return types.Content(parts=[types.Part(text=full_prompt)])
+
+    def _build_user_prompt(self, request: ScrapeRequest) -> types.Content:
+        """Builds the user prompt based on the given scrape request."""
         input_type = 'HTML content' if request.input_format == InputFormat.HTML else 'DOM tree'
 
         prompt = f"""URL: {request.url}
 
-Input Type: {input_type}
+        Input Type: {input_type}
 
-Content:
-{request.content}
+        Content:
+        {request.content}
 
-User Request: {request.user_request}
+        User Request: {request.user_request}
 
-Generate the selectors now. Return ONLY the JSON output, no other text."""
+        Generate the selectors now. Return ONLY the JSON output, no other text.
+        """
+        return types.Content(parts=[types.Part(text=prompt)])
 
-        return prompt
+    # -----------------------------
+    # Response parsing
+    # -----------------------------
 
-    def _parse_gemini_response(self, response_text: str, output_format: OutputFormat) -> dict:
-        """Parse and validate the Gemini response"""
-
-        # Remove markdown code blocks if present
-        cleaned_text = response_text.strip()
-        if cleaned_text.startswith('```json'):
-            cleaned_text = cleaned_text[7:]
-        elif cleaned_text.startswith('```'):
-            cleaned_text = cleaned_text[3:]
-
-        if cleaned_text.endswith('```'):
-            cleaned_text = cleaned_text[:-3]
-
-        cleaned_text = cleaned_text.strip()
-
-        # Parse JSON
+    @staticmethod
+    def _parse_gemini_response(response_text: str) -> dict:
+        """Parses and validates the JSON response from Gemini."""
         try:
-            parsed = json.loads(cleaned_text)
+            parsed = json.loads(response_text)
         except json.JSONDecodeError as e:
-            raise ValueError(f'Failed to parse JSON response: {e}. Raw output: {response_text}')
-
-        # Validate structure
+            raise ValueError(f'Invalid JSON in Gemini response: {e}\nRaw output:\n{response_text}') from e
         if 'selectors' not in parsed:
-            raise ValueError(f'Response missing "selectors" key. Raw output: {response_text}')
-
+            raise ValueError(f'Missing key "selectors" in response.\nRaw output:\n{response_text}')
         return parsed
 
+    # -----------------------------
+    # Main function: generation
+    # -----------------------------
+
     def generate_selectors(self, request: ScrapeRequest) -> ScrapeResponse:
-        """
-        Generate selectors using Gemini AI
-
-        Args:
-            request: ScrapeRequest containing URL, content, and user request
-
-        Returns:
-            ScrapeResponse with generated selectors
-
-        Raises:
-            ValueError: If API key is not configured or response is invalid
-            Exception: If Gemini API call fails
-        """
-
-        # Build prompts
+        """Calls Gemini and returns generated selectors."""
         system_prompt = self._build_system_prompt(request.output_format)
         user_prompt = self._build_user_prompt(request)
 
-        # Call Gemini API
         try:
-            response = self.model.generate_content([system_prompt, user_prompt])
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[system_prompt, user_prompt],
+                config=types.GenerateContentConfig(response_mime_type='application/json'),
+            )
             raw_output = response.text
         except Exception as e:
-            raise Exception(f'Gemini API call failed: {str(e)}')
+            raise RuntimeError(f'Gemini API call failed: {e}') from e
 
-        # Parse response
-        try:
-            parsed_data = self._parse_gemini_response(raw_output, request.output_format)
-        except ValueError as e:
-            # Return error with raw output for debugging
-            raise ValueError(str(e))
-
-        # Convert to Selectors objects
-        selectors_dict = {}
-        for field_name, selector_data in parsed_data['selectors'].items():
-            selectors_dict[field_name] = Selectors(
-                xpath=selector_data.get('xpath'), css=selector_data.get('css')
+        parsed = self._parse_gemini_response(raw_output)
+        selectors = {
+            name: Selectors(
+                xpath=data.get('xpath'),
+                css=data.get('css'),
             )
+            for name, data in parsed['selectors'].items()
+        }
 
-        return ScrapeResponse(url=request.url, selectors=selectors_dict, raw_output=raw_output)
+        return ScrapeResponse(url=request.url, selectors=selectors, raw_output=raw_output)
+
+    def validate_and_refine_selectors(self, validation_prompt: str) -> dict:
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[validation_prompt],
+                config=types.GenerateContentConfig(response_mime_type='application/json'),
+            )
+            return json.loads(response.text)
+        except (Exception, json.JSONDecodeError) as e:
+            print(f'Validation agent call or JSON parsing failed: {e}')
+            return {
+                'decision': 'GOOD',
+                'reasoning': 'Validation agent failed, skipping refinement.',
+                'refined_selectors': {},
+            }
 
 
-# Singleton instance
-_gemini_service: Optional[GeminiAgentService] = None
+# ------------------------------------------------------------
+# 🔹 Singleton instance
+# ------------------------------------------------------------
+
+_gemini_service: GeminiAgentService | None = None
 
 
 def get_gemini_service() -> GeminiAgentService:
-    """Get or create the Gemini agent service singleton"""
+    """Returns a singleton instance (only one Gemini service per app)."""
     global _gemini_service
-
     if _gemini_service is None:
         _gemini_service = GeminiAgentService()
-
     return _gemini_service
-

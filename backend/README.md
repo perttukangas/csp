@@ -8,15 +8,12 @@
 ## Installation
 
 - `uv sync`
-- Add `.env` file according to `.env.template`
+- Do `.env` file according to `.env.template`
  
 ## Start in dev mode
 
-- `uv run uvicorn app.main:app --reload`
+- `uv run python -m app.main --reload`
 
-## 🧪 Testing
+## Run tests
 
-```bash
-# Run integration tests in another terminal
-uv run tests/test_gemini_agent.py
-```
+- `uv run pytest <specific test path>`
