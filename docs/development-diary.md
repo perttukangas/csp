@@ -1,3 +1,23 @@
+## 27.10
+
+- Experiement with subagent #11
+- Setup the pipeline #15
+- Authenticated scraping #14
+
+Not yet completed due to challenges, but getting there:
+
+- 2 phase processing for urls #12
+- Crawling along different next page links #13
+
+What is planned next:
+
+- Improve authenticated scraping #22
+- Optimize the agent(s) #23
+
+## 20.10
+
+Autumn break
+
 ## 13.10
 
 - Init agent to handle spider data #3
