@@ -21,6 +21,9 @@ export class ExtensionStorage {
     }
   }
 
+  // Overloaded signatures for better typing
+  async get<T>(key: string, defaultValue: T): Promise<T>;
+  async get<T>(key: string): Promise<T | undefined>;
   async get<T>(key: string, defaultValue?: T): Promise<T | undefined> {
     try {
       const storage = await this.getStorageApi();

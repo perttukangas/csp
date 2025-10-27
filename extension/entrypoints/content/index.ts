@@ -1,3 +1,10 @@
+import {
+  getRenderedHTML,
+  waitForContentToLoad,
+  waitForKeyElements,
+  waitForSPAFrameworks,
+} from './htmlRenderUtils';
+
 export default defineContentScript({
   matches: ['<all_urls>'], // Run on all websites
   main() {
@@ -24,6 +31,41 @@ export default defineContentScript({
         if (response?.success) {
           console.log(
             '✅ URL sent to server successfully via background script'
+          );
+        } else if (response.requiresAuth) {
+          console.log(
+            '🔒 Page requires authentication, capturing rendered content...'
+          );
+
+          // Strategy 1: Detect and wait for SPA frameworks
+          await waitForSPAFrameworks();
+
+          // Strategy 2: Wait for key content elements to appear
+          await waitForKeyElements();
+
+          // Strategy 3: Wait for content to stabilize
+          await waitForContentToLoad();
+
+          // Strategy 4: Get the fully rendered HTML
+          const html = getRenderedHTML();
+          console.log('📄 Captured rendered HTML length:', html);
+
+          // Optional: Extract meaningful text content for analysis
+          const textContent = document.body.innerText || '';
+          const wordCount = textContent
+            .split(/\s+/)
+            .filter(word => word.length > 0).length;
+          console.log('📄 Text content word count:', wordCount);
+
+          const response = await browser.runtime.sendMessage({
+            type: 'STORE_HTML_URL',
+            url: url,
+            html: html,
+          });
+
+          console.log(
+            'Received response from background script for HTML storage:',
+            response
           );
         } else {
           console.log(

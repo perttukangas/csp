@@ -14,6 +14,7 @@ describe('BackgroundService', () => {
     const testResponse = {
       url: 'https://example.com',
       validationStatus: 'pending' as const,
+      type: 'url' as const,
     };
 
     await service.storeResponse(testResponse);
@@ -28,6 +29,7 @@ describe('BackgroundService', () => {
     const testResponse = {
       url: 'https://example.com',
       validationStatus: 'pending' as const,
+      type: 'url' as const,
     };
 
     await service.storeResponse(testResponse);

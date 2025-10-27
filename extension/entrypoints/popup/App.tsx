@@ -3,32 +3,63 @@ import './App.css';
 import { browser } from 'wxt/browser';
 import { extensionStorage } from '../../utils/storage';
 import UrlsList from './UrlsList';
+import { ScrapeResponse } from '../background/BackgroundService';
+
+export enum Tab {
+  CONTROLS = 'controls',
+  URLS = 'urls',
+  HTMLS = 'htmls',
+}
 
 function App() {
   const [isTrackingEnabled, setIsTrackingEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [prompt, setPrompt] = useState('');
-  const [activeTab, setActiveTab] = useState<'controls' | 'urls'>('controls');
+  const [activeTab, setActiveTab] = useState<Tab>(Tab.CONTROLS);
   const [pendingValidations, setPendingValidations] = useState(0);
+  const [pendingValidationsHtml, setPendingValidationsHtml] = useState(0);
   const [validatedCount, setValidatedCount] = useState(0);
+  const [validatedHtmlCount, setValidatedHtmlCount] = useState(0);
   const [isSending, setIsSending] = useState(false);
 
   // Load pending validations count
   const loadPendingValidations = async () => {
+    console.log('Loading pending validations count...');
     try {
-      const result = await browser.runtime.sendMessage({
+      const result = await browser.runtime.sendMessage<
+        any,
+        { success: boolean; responses: ScrapeResponse[] }
+      >({
         type: 'GET_RESPONSES',
       });
 
+      console.log('Pending validations response:', result);
+
       if (result.success) {
-        const pendingCount = (result.responses || []).filter(
+        const pendingLink = (result.responses || []).filter(
+          (r: any) => r.type === 'url'
+        );
+        const pendingHtmls = (result.responses || []).filter(
+          (r: any) => r.type === 'html'
+        );
+        const pendingCount = pendingLink.filter(
           (r: any) => r.validationStatus === 'pending'
         ).length;
-        const validatedCount = (result.responses || []).filter(
+        const validatedCount = pendingLink.filter(
           (r: any) => r.validationStatus === 'validated'
         ).length;
+
+        const pendingHtmlCount = pendingHtmls.filter(
+          (r: any) => r.validationStatus === 'pending'
+        ).length;
+        const validatedHtmlCount = pendingHtmls.filter(
+          (r: any) => r.validationStatus === 'validated'
+        ).length;
+
         setPendingValidations(pendingCount);
+        setPendingValidationsHtml(pendingHtmlCount);
         setValidatedCount(validatedCount);
+        setValidatedHtmlCount(validatedHtmlCount);
       }
     } catch (error) {
       console.error('Failed to load pending validations:', error);
@@ -89,7 +120,7 @@ function App() {
   };
 
   const handleSendValidated = async () => {
-    if (validatedCount === 0) {
+    if (validatedCount === 0 && validatedHtmlCount === 0) {
       alert('No validated responses to send!');
       return;
     }
@@ -131,18 +162,27 @@ function App() {
       {/* Tab Navigation */}
       <div className="tab-navigation">
         <button
-          className={`tab-button ${activeTab === 'controls' ? 'active' : ''}`}
-          onClick={() => setActiveTab('controls')}
+          className={`tab-button ${activeTab === Tab.CONTROLS ? 'active' : ''}`}
+          onClick={() => setActiveTab(Tab.CONTROLS)}
         >
           Controls
         </button>
         <button
-          className={`tab-button ${activeTab === 'urls' ? 'active' : ''}`}
-          onClick={() => setActiveTab('urls')}
+          className={`tab-button ${activeTab === Tab.URLS ? 'active' : ''}`}
+          onClick={() => setActiveTab(Tab.URLS)}
         >
           URLs
           {pendingValidations > 0 && (
             <span className="badge">{pendingValidations}</span>
+          )}
+        </button>
+        <button
+          className={`tab-button ${activeTab === Tab.HTMLS ? 'active' : ''}`}
+          onClick={() => setActiveTab(Tab.HTMLS)}
+        >
+          HTMLs
+          {pendingValidationsHtml > 0 && (
+            <span className="badge">{pendingValidationsHtml}</span>
           )}
         </button>
       </div>
@@ -184,11 +224,13 @@ function App() {
             <button
               className="send-button"
               onClick={handleSendValidated}
-              disabled={isSending || validatedCount === 0}
+              disabled={
+                isSending || (validatedCount === 0 && validatedHtmlCount === 0)
+              }
             >
               {isSending
                 ? '⟳ Sending...'
-                : `📤 Send ${validatedCount} URLs to processing`}
+                : `📤 Send ${validatedCount + validatedHtmlCount} URLs to processing`}
             </button>
           </div>
         </div>
@@ -196,8 +238,15 @@ function App() {
 
       {/* Urls Tab */}
       <UrlsList
-        isVisible={activeTab === 'urls'}
+        isVisible={[Tab.URLS].includes(activeTab)}
         onValidationUpdate={loadPendingValidations}
+        tab={activeTab}
+      />
+
+      <UrlsList
+        isVisible={[Tab.HTMLS].includes(activeTab)}
+        onValidationUpdate={loadPendingValidations}
+        tab={activeTab}
       />
     </>
   );

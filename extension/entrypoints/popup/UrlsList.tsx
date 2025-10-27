@@ -1,17 +1,15 @@
 import { useState, useEffect } from 'react';
 import { browser } from 'wxt/browser';
-
-interface ScrapeResponse {
-  url: string;
-  validationStatus?: 'pending' | 'validated' | 'invalid';
-}
+import { ScrapeResponse } from '../background/BackgroundService';
+import { Tab } from './App';
 
 interface UrlsListProps {
   isVisible: boolean;
   onValidationUpdate?: () => void;
+  tab: Tab;
 }
 
-function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
+function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
   const [responses, setResponses] = useState<ScrapeResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [validatingIds, setValidatingIds] = useState<Set<string>>(new Set());
@@ -24,12 +22,20 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
 
     setIsLoading(true);
     try {
-      const result = await browser.runtime.sendMessage({
+      const result = await browser.runtime.sendMessage<
+        any,
+        { success: boolean; error: any; responses: ScrapeResponse[] }
+      >({
         type: 'GET_RESPONSES',
       });
 
+      console.log('Load responses result:', result);
+
       if (result.success) {
-        setResponses(result.responses || []);
+        const filterPerType = (result.responses || []).filter(r =>
+          tab === Tab.URLS ? r.type === 'url' : r.type === 'html'
+        );
+        setResponses(filterPerType);
       } else {
         console.error('Failed to load responses:', result.error);
       }
@@ -169,6 +175,7 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
 
   // Auto-refresh when tab becomes visible or every 30 seconds when visible
   useEffect(() => {
+    console.log('UrlsList visibility changed:', isVisible, tab);
     if (!isVisible) return;
 
     const interval = setInterval(() => {
@@ -176,7 +183,7 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
     }, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
-  }, [isVisible]);
+  }, [isVisible, tab]);
 
   const getValidationStatusColor = (status?: string) => {
     switch (status) {
@@ -209,7 +216,7 @@ function UrlsList({ isVisible, onValidationUpdate }: UrlsListProps) {
 
   useEffect(() => {
     loadResponses();
-  }, [isVisible]);
+  }, [isVisible, tab]);
 
   if (!isVisible) {
     return null;

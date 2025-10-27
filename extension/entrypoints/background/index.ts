@@ -3,6 +3,15 @@ import { BackgroundService } from './BackgroundService';
 export default defineBackground({
   type: 'module',
   main() {
+    console.log('🚀 BACKGROUND SCRIPT LOADED!', new Date().toISOString());
+    console.warn(
+      'Background script is running - check chrome://extensions/ -> Inspect views'
+    );
+
+    // Set a visible badge to confirm the script is running
+    browser.action?.setBadgeText({ text: '✓' });
+    browser.action?.setBadgeBackgroundColor({ color: '#4CAF50' });
+
     const backgroundService = new BackgroundService();
 
     // Bind the handleMessage method properly to maintain 'this' context
@@ -15,7 +24,7 @@ export default defineBackground({
       // Only process when URL actually changes and is complete
       if (changeInfo.status === 'complete' && tab.url) {
         console.log('Tab URL changed:', tab.url);
-        backgroundService.storeUrlForLater(tab.url, tabId);
+        backgroundService.storeUrlForLater(tab.url, undefined, tabId);
       }
     });
 
@@ -25,7 +34,11 @@ export default defineBackground({
         const tab = await browser.tabs.get(activeInfo.tabId);
         if (tab.url) {
           console.log('Tab activated:', tab.url);
-          backgroundService.storeUrlForLater(tab.url, activeInfo.tabId);
+          backgroundService.storeUrlForLater(
+            tab.url,
+            undefined,
+            activeInfo.tabId
+          );
         }
       } catch (error) {
         console.error('Error getting active tab:', error);

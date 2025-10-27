@@ -1,0 +1,2 @@
+all:
+	curl -X POST http://localhost:8000/api/process -H "Content-Type: application/json" -d "{\"urls\": [{\"url\": \"https://varuste.net/lajit\"}, {\"url\": \"https://varusteleka.com/collections/vaatteet\"}], \"prompt\": \"Extract different product categories in csv\"}"
