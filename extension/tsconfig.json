@@ -2,6 +2,11 @@
   "extends": "./.wxt/tsconfig.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
-    "jsx": "react-jsx"
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "lib": ["ES2015", "DOM", "DOM.Iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler"
   }
 }
