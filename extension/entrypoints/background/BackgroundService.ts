@@ -1,4 +1,5 @@
 import { extensionStorage } from '../../utils/storage';
+import { browser } from 'wxt/browser';
 
 export interface ScrapeResponse {
   url: string;
@@ -524,6 +525,7 @@ export class BackgroundService {
     success: boolean;
     error?: string;
     sent?: number;
+    csvContent?: string;
   }> {
     console.log('🚀 Starting sendValidatedResponsesToServer()');
     try {
@@ -590,12 +592,21 @@ export class BackgroundService {
       );
 
       if (response.ok) {
-        const responseText = await response.text();
-        console.log(
-          '✅ Validated responses sent to server successfully. Response:',
-          responseText
-        );
-        return { success: true, sent: validatedResponses.length };
+        // Service workers don't have access to URL.createObjectURL, so just read as text and return to popup
+        try {
+          const contentType = response.headers.get('content-type') || '';
+          const contentDisposition = response.headers.get('content-disposition') || '';
+          const contentLength = response.headers.get('content-length') || '';
+          console.log('📌 content-type:', contentType, 'content-disposition:', contentDisposition, 'content-length:', contentLength);
+
+          // Read response as text and let the popup handle download
+          const csvText = await response.text();
+          console.log('ℹ️ Returning CSV text to popup for download, length:', csvText.length);
+          return { success: true, sent: validatedResponses.length, csvContent: csvText };
+        } catch (err) {
+          console.error('💥 Error reading server response:', err);
+          return { success: false, error: 'Failed to read server response' };
+        }
       } else {
         console.error('❌ Server returned error:', response.status);
         return { success: false, error: `Server error: ${response.status}` };
@@ -609,9 +620,98 @@ export class BackgroundService {
     }
   }
 
+  async verifySampleResponses(): Promise<{
+    success: boolean;
+    error?: string;
+    csvContent?: string;
+  }> {
+    console.log('🔍 Starting verifySampleResponses()');
+    try {
+      const responses = await this.getStoredResponses();
+      console.log('📦 Total stored responses:', responses.length);
+
+      const validatedResponses = responses.filter(
+        r => r.validationStatus === 'validated'
+      );
+      console.log('✅ Validated responses found:', validatedResponses.length);
+
+      if (validatedResponses.length === 0) {
+        console.log('⚠️ No validated responses to verify');
+        return { success: false, error: 'No validated responses to verify' };
+      }
+
+      // Take first 3 responses for verification
+      const verificationResponses = validatedResponses.slice(0, 3);
+      console.log(`🔍 Verifying first ${verificationResponses.length} responses`);
+
+      // Get the current prompt and settings
+      const currentPrompt = await this.getPropmpt();
+      const isCrawlingMode = await extensionStorage.get('crawlingMode', false);
+      const isAnalysisMode = await extensionStorage.get('analysisMode', false);
+
+      console.log('📝 Current prompt:', currentPrompt);
+      console.log('🕷️ Crawling mode:', isCrawlingMode);
+      console.log('🔍 Analysis mode:', isAnalysisMode);
+
+      // Separate URLs and HTMLs
+      const verificationUrls = verificationResponses.filter(r => r.type === 'url');
+      const verificationHtmls = verificationResponses.filter(r => r.type === 'html');
+
+      console.log(
+        `🌐 Preparing to send ${verificationUrls.length} URLs and ${verificationHtmls.length} HTML contents for verification`
+      );
+
+      // Send verification request to the server
+      const backendUrl = 'http://localhost:8000';
+      console.log(`🌐 Making verification HTTP request to ${backendUrl}/api/verify`);
+      const response = await fetch(`${backendUrl}/api/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          urls: verificationUrls.map(r => ({
+            url: r.url,
+          })),
+          htmls: verificationHtmls.map(r => ({
+            html: r.html,
+          })),
+          prompt: currentPrompt,
+          crawl: isCrawlingMode,
+          analysis_only: isAnalysisMode,
+        }),
+      });
+
+      console.log(
+        '📡 Verification HTTP response received. Status:',
+        response.status,
+        'OK:',
+        response.ok
+      );
+
+      if (response.ok) {
+        const csvContent = await response.text();
+        console.log(
+          '✅ Verification completed successfully. CSV length:',
+          csvContent.length
+        );
+        return { success: true, csvContent };
+      } else {
+        console.error('❌ Verification server returned error:', response.status);
+        return { success: false, error: `Server error: ${response.status}` };
+      }
+    } catch (error) {
+      console.error('💥 Failed to verify sample responses:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
   handleMessage(
     message: any,
-    sender: globalThis.Browser.runtime.MessageSender,
+    sender: any,
     sendResponse: (response: any) => void
   ) {
     console.log(
@@ -733,6 +833,23 @@ export class BackgroundService {
         })
         .catch(error => {
           console.error('💥 Error sending validated responses:', error);
+          sendResponse({ success: false, error: error.message });
+        });
+
+      return true;
+    }
+
+    if (message.type === 'VERIFY_SAMPLE') {
+      console.log('📨 Received request to verify sample responses');
+      console.log('🔍 About to call verifySampleResponses()');
+
+      this.verifySampleResponses()
+        .then(result => {
+          console.log('📤 Verify sample responses result:', result);
+          sendResponse(result);
+        })
+        .catch(error => {
+          console.error('💥 Error verifying sample responses:', error);
           sendResponse({ success: false, error: error.message });
         });
 

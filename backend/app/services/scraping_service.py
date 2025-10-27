@@ -251,7 +251,7 @@ async def generate_selectors_and_scrape_data(
 
     print('html selectors ', html_selector_results)
 
-    url_to_selectors_map = {request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selectors}
+    url_to_selectors_map = {request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selector_results}
     html_to_selectors_map = {
         f'html_content_{i}': selectors for i, selectors in enumerate(html_selector_results) if selectors
     }
