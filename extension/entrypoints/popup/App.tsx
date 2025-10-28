@@ -21,6 +21,9 @@ function App() {
   const [validatedCount, setValidatedCount] = useState(0);
   const [validatedHtmlCount, setValidatedHtmlCount] = useState(0);
   const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<string | null>(null);
+  const [showVerification, setShowVerification] = useState(false);
 
   // Load pending validations count
   const loadPendingValidations = async () => {
@@ -151,6 +154,36 @@ function App() {
     }
   };
 
+  const handleVerifySample = async () => {
+    if (validatedCount === 0) {
+      alert('No validated responses to verify!');
+      return;
+    }
+
+    console.log('🔍 Sending VERIFY_SAMPLE message to background script');
+    setIsVerifying(true);
+    setVerificationResult(null);
+    try {
+      const result = await browser.runtime.sendMessage({
+        type: 'VERIFY_SAMPLE',
+      });
+
+      console.log('📨 Received verification response:', result);
+
+      if (result.success) {
+        setVerificationResult(result.csvContent);
+        setShowVerification(true);
+      } else {
+        alert(`Failed to verify sample: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to verify sample:', error);
+      alert('Failed to verify sample. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="loading-state">Loading...</div>;
   }
@@ -222,6 +255,16 @@ function App() {
 
           <div className="send-section">
             <button
+              className="verify-button"
+              onClick={handleVerifySample}
+              disabled={isVerifying || validatedCount === 0}
+            >
+              {isVerifying
+                ? '⟳ Verifying...'
+                : `🔍 Verify Sample (3 URLs)`}
+            </button>
+            
+            <button
               className="send-button"
               onClick={handleSendValidated}
               disabled={
@@ -233,6 +276,31 @@ function App() {
                 : `📤 Send ${validatedCount + validatedHtmlCount} URLs to processing`}
             </button>
           </div>
+
+          {/* Verification Results Preview */}
+          {showVerification && verificationResult && (
+            <div className="verification-preview">
+              <h3>📊 Verification Results (First 3 URLs):</h3>
+              <div className="csv-preview">
+                <pre>{verificationResult}</pre>
+              </div>
+              <div className="verification-actions">
+                <button
+                  className="adjust-button"
+                  onClick={() => setShowVerification(false)}
+                >
+                  ✏️ Adjust Prompt
+                </button>
+                <button
+                  className="proceed-button"
+                  onClick={handleSendValidated}
+                  disabled={isSending}
+                >
+                  ✅ Looks Good - Process All
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

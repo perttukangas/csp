@@ -85,6 +85,17 @@ class ProcessUrlRequest(BaseModel):
     url: str
 
 
+class VerifyRequest(BaseModel):
+    """Request model for the verification endpoint."""
+
+    urls: list[ProcessUrlRequest]
+    prompt: str
+    depth: int = Field(default=1, gt=0, description='How many link levels to follow. 1 means no crawling.')
+    use_validation_agent: bool | None = Field(
+        default=False, description='Use a second agent to analyze and refine results.'
+    )
+
+
 class ProcessRequest(BaseModel):
     """Request model for the main processing endpoint."""
 
