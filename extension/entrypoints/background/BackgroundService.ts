@@ -442,7 +442,7 @@ export class BackgroundService {
           htmls: validatedHtmls.map(r => ({
             html: r.html,
           })),
-          prompt: currentPrompt || ''
+          prompt: currentPrompt || '',
         }),
       });
 

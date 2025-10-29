@@ -193,16 +193,17 @@ def truncate_html(html_content: str) -> str:
         return cleaned
     except Exception as e:
         print(f'HTML truncation failed: {e}')
-        # Fallback to simple truncation
-        return html_content[:max_length] if len(html_content) > max_length else html_content
+        # Fallback to original content
+        return html_content
 
 
 async def generate_selectors_and_scrape_data(
     client: httpx.AsyncClient, request: ProcessRequest, validation_fail_reasoning: str | None
 ) -> Tuple[list[dict[str, Any]], dict[str, Any]]:
     print('Phase 1: Starting CONCURRENT selector generation.')
+    reasoning = validation_fail_reasoning or ''
     selector_tasks = [
-        generate_selectors_for_url(client, u.url, request.prompt, validation_fail_reasoning) for u in request.urls
+        generate_selectors_for_url(client, u.url, request.prompt, reasoning) for u in request.urls
     ]
     selector_results = await asyncio.gather(*selector_tasks)
     url_to_selectors_map = {request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selectors}
