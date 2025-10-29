@@ -3,6 +3,7 @@ from urllib.parse import urljoin
 
 import httpx
 from lxml import html
+from lxml.html.clean import Cleaner
 
 from app.models.scrape import OutputFormat, ScrapeRequest
 from app.services.gemini_agent import get_gemini_service
@@ -119,16 +120,57 @@ async def generate_selectors_for_url(client: httpx.AsyncClient, url: str, prompt
         response = await client.get(url, follow_redirects=True)
         response.raise_for_status()
 
+        truncated_html = truncate_html(response.text)
+
         gemini_service = get_gemini_service()
         scrape_req = ScrapeRequest(
             url=url,
-            content=response.text,
+            content=truncated_html,
             user_request=prompt,
             output_format=OutputFormat.XPATH,
         )
 
         selector_response = gemini_service.generate_selectors(scrape_req)
-        return {k: v.model_dump() for k, v in selector_response.selectors.items()}
+        result = {k: v.model_dump() for k, v in selector_response.selectors.items()}
+        
+        # LOG GENERATED SELECTORS
+        print('Generated selectors:')
+        for field, selector_info in result.items():
+            print(f'  {field}: {selector_info.get("xpath", "N/A")}')
+        
+        return result
     except Exception as e:
         print(f'Failed to generate selectors for {url}: {e}')
-        return {}  # Return empty dict on failure
+        return {}
+
+
+def truncate_html(html_content: str) -> str:
+    """Truncates HTML to only relevant content for selector generation."""
+    try:
+        tree = html.fromstring(html_content)
+        
+        cleaner = Cleaner(
+            scripts=True,
+            javascript=True,
+            comments=True,
+            style=True,
+            inline_style=True,
+            embedded=True,
+            meta=True,
+            page_structure=False,
+            processing_instructions=True,
+            remove_tags=['noscript', 'iframe', 'svg'],
+        )
+        tree = cleaner.clean_html(tree)
+        
+        for el in tree.xpath('//*[not(normalize-space())]'):
+            if el.tag not in ['br', 'hr', 'img']:
+                el.getparent().remove(el)
+        
+        cleaned = html.tostring(tree, encoding='unicode')
+        
+        return cleaned
+    except Exception as e:
+        print(f'HTML truncation failed: {e}')
+        # Fallback to simple truncation
+        return html_content[:max_length] if len(html_content) > max_length else html_content

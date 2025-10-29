@@ -27,7 +27,6 @@ async def process_urls(request: ProcessRequest):
     """
     print(f'Starting process_urls with {len(request.urls)} URLs, depth {request.depth}')
     print(f'Request prompt: {request.prompt}')
-    print(f'Validation Agent enabled: {request.use_validation_agent}')
 
     if not request.urls:
         raise HTTPException(status_code=400, detail='No URLs provided')
@@ -35,21 +34,12 @@ async def process_urls(request: ProcessRequest):
     async with httpx.AsyncClient(timeout=500.0) as client:
         url_to_selectors_map = {}
 
-        if request.use_validation_agent:
-            print('Phase 1: Starting SEQUENTIAL selector generation.')
-            for url_obj in request.urls:
-                selectors = await generate_selectors_for_url(client, url_obj.url, request.prompt)
-                if selectors:
-                    url_to_selectors_map[url_obj.url] = selectors
-                print('Waiting for 65 seconds before next API call...')
-                await asyncio.sleep(65)
-        else:
-            print('Phase 1: Starting CONCURRENT selector generation.')
-            selector_tasks = [generate_selectors_for_url(client, u.url, request.prompt) for u in request.urls]
-            selector_results = await asyncio.gather(*selector_tasks)
-            url_to_selectors_map = {
-                request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selectors
-            }
+        print('Phase 1: Starting CONCURRENT selector generation.')
+        selector_tasks = [generate_selectors_for_url(client, u.url, request.prompt) for u in request.urls]
+        selector_results = await asyncio.gather(*selector_tasks)
+        url_to_selectors_map = {
+            request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selectors
+        }
 
         if not url_to_selectors_map:
             raise HTTPException(status_code=500, detail='Failed to generate selectors for any URL.')
@@ -64,10 +54,7 @@ async def process_urls(request: ProcessRequest):
         all_scraped_data = [item for sublist in results for item in sublist]
         print(f'Phase 2 complete. Total items scraped: {len(all_scraped_data)}')
 
-        if request.use_validation_agent:
-            print('Waiting for 65 seconds before validation agent call...')
-            await asyncio.sleep(65)
-            all_scraped_data = await validate_and_refine_data(client, all_scraped_data, url_to_selectors_map, request)
+        all_scraped_data = await validate_and_refine_data(client, all_scraped_data, url_to_selectors_map, request)
 
     print('Phase 3: Formatting data as CSV')
     if not all_scraped_data:
