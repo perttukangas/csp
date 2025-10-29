@@ -31,61 +31,25 @@ Your tasks:
 
 def get_format_instructions(fmt: OutputFormat) -> str:
     """Returns format-specific output instructions for the selector type."""
-    if fmt == OutputFormat.XPATH:
-        return """Output Format:
-Return ONLY valid JSON in this exact schema (no markdown, no explanations):
-{
-  "selectors": {
-    "<field_name>": {
-      "xpath": "<xpath_selector>"
-    }
-  }
-}
 
-XPath Guidelines:
-- Use absolute paths sparingly; prefer relative paths with meaningful attributes
-- Use text() for text content, @attribute for attributes
-- Prefer class names and IDs when stable
-- Use contains() for partial matches when appropriate
-"""
-
-    if fmt == OutputFormat.CSS:
-        return """Output Format:
-Return ONLY valid JSON in this exact schema (no markdown, no explanations):
-{
-  "selectors": {
-    "<field_name>": {
-      "css": "<css_selector>"
-    }
-  }
-}
-
-CSS Guidelines:
-- Use class names and IDs when available and stable
-- Use attribute selectors for semantic attributes
-- Prefer direct child (>) over descendant when structure is stable
-- Use :nth-child() or :nth-of-type() only when necessary
-"""
-
-    # BOTH
     return """Output Format:
-Return ONLY valid JSON in this exact schema (no markdown, no explanations):
-{
-  "selectors": {
-    "<field_name>": {
-      "xpath": "<xpath_selector>",
-      "css": "<css_selector>"
+    Return ONLY valid JSON in this exact schema (no markdown, no explanations):
+    {
+      "selectors": {
+        "<field_name>": {
+          "xpath": "<xpath_selector>"
+        }
+      }
     }
-  }
-}
 
-Selector Guidelines:
-- Generate both XPath and CSS selectors for each field
-- XPath: Use text() for text content, @attribute for attributes
-- CSS: Use class names, IDs, and attribute selectors
-- Both should target the same element
-- Prefer stable, semantic selectors over brittle positional ones
-"""
+    XPath Guidelines:
+    - Use only XPath 1.0 syntax (no XPath 2.0+ functions like matches(), tokenize(), etc.)
+    - Use absolute paths sparingly; prefer relative paths with meaningful attributes
+    - Use text() for text content, @attribute for attributes
+    - Prefer class names and IDs when stable
+    - Use contains() for partial matches when appropriate
+    - For case-insensitive matching, use translate() function to normalize case
+    """
 
 
 # ------------------------------------------------------------
@@ -128,6 +92,17 @@ class GeminiAgentService:
         """
         return types.Content(parts=[types.Part(text=prompt)])
 
+    def _build_validator_prompt(self, validation_fail_reasoning: str) -> types.Content:
+        """Builds the prompt from the validation agent."""
+        if not validation_fail_reasoning:
+            return types.Content(parts=[types.Part(text='')])
+
+        prompt = f"""The previous generation was not satisfactory.
+
+Reasoning: {validation_fail_reasoning}
+"""
+        return types.Content(parts=[types.Part(text=prompt)])
+
     # -----------------------------
     # Response parsing
     # -----------------------------
@@ -147,15 +122,16 @@ class GeminiAgentService:
     # Main function: generation
     # -----------------------------
 
-    def generate_selectors(self, request: ScrapeRequest) -> ScrapeResponse:
+    def generate_selectors(self, request: ScrapeRequest, validation_fail_reasoning: str) -> ScrapeResponse:
         """Calls Gemini and returns generated selectors."""
         system_prompt = self._build_system_prompt(request.output_format)
         user_prompt = self._build_user_prompt(request)
+        validated_prompt = self._build_validator_prompt(validation_fail_reasoning)
 
         try:
             response = self.client.models.generate_content(
                 model=self.model_name,
-                contents=[system_prompt, user_prompt],
+                contents=[system_prompt, user_prompt, validated_prompt],
                 config=types.GenerateContentConfig(response_mime_type='application/json'),
             )
             raw_output = response.text
@@ -163,13 +139,7 @@ class GeminiAgentService:
             raise RuntimeError(f'Gemini API call failed: {e}') from e
 
         parsed = self._parse_gemini_response(raw_output)
-        selectors = {
-            name: Selectors(
-                xpath=data.get('xpath'),
-                css=data.get('css'),
-            )
-            for name, data in parsed['selectors'].items()
-        }
+        selectors = {name: Selectors(xpath=data.get('xpath')) for name, data in parsed['selectors'].items()}
 
         return ScrapeResponse(url=request.url, selectors=selectors, raw_output=raw_output)
 
@@ -183,11 +153,7 @@ class GeminiAgentService:
             return json.loads(response.text)
         except (Exception, json.JSONDecodeError) as e:
             print(f'Validation agent call or JSON parsing failed: {e}')
-            return {
-                'decision': 'GOOD',
-                'reasoning': 'Validation agent failed, skipping refinement.',
-                'refined_selectors': {},
-            }
+            return {'decision': 'GOOD', 'reasoning': 'Validation agent failed, skipping refinement.'}
 
 
 # ------------------------------------------------------------

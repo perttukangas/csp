@@ -3,7 +3,13 @@ from urllib.parse import urljoin
 
 import httpx
 from lxml import html
+from lxml.html.clean import Cleaner
+from typing import Tuple
+from fastapi import HTTPException
+import asyncio
 
+
+from app.models.scrape import ProcessRequest
 from app.models.scrape import OutputFormat, ScrapeRequest
 from app.services.gemini_agent import get_gemini_service
 
@@ -22,26 +28,21 @@ async def scrape_and_crawl(
     print(f'Scraping URL: {url} at depth {depth}')
     visited.add(url)
 
-    try:
-        html_content = await fetch_html(client, url)
-        if not html_content:
-            return []
-
-        tree = html.fromstring(html_content)
-        data_selectors = selectors.copy()
-        next_page_selector_info = data_selectors.pop('next_page_selector', None)
-
-        scraped_items = extract_items(tree, data_selectors, url)
-
-        if depth > 1 and next_page_selector_info:
-            next_items = await follow_next_page(client, url, tree, next_page_selector_info, selectors, depth, visited)
-            scraped_items.extend(next_items)
-
-        return scraped_items
-
-    except Exception as e:
-        print(f'An unexpected error occurred while scraping {url}: {e}')
+    html_content = await fetch_html(client, url)
+    if not html_content:
         return []
+
+    tree = html.fromstring(html_content)
+    data_selectors = selectors.copy()
+    next_page_selector_info = data_selectors.pop('next_page_selector', None)
+
+    scraped_items = extract_items(tree, data_selectors, url)
+
+    if depth > 1 and next_page_selector_info:
+        next_items = await follow_next_page(client, url, tree, next_page_selector_info, selectors, depth, visited)
+        scraped_items.extend(next_items)
+
+    return scraped_items
 
 
 async def fetch_html(client: httpx.AsyncClient, url: str) -> str | None:
@@ -56,35 +57,54 @@ async def fetch_html(client: httpx.AsyncClient, url: str) -> str | None:
 
 
 def extract_items(tree: html.HtmlElement, selectors: dict[str, Any], url: str) -> list[dict[str, str]]:
-    """Extracts data items from a parsed HTML tree using given selectors."""
     if not selectors:
         return []
 
-    first_field = next(iter(selectors))
-    first_xpath = selectors[first_field].get('xpath')
-    if not first_xpath:
-        return []
+    num_items = 0
+    for field, selector_info in selectors.items():
+        xpath = selector_info.get('xpath') if isinstance(selector_info, dict) else selector_info
 
-    num_items = len(tree.xpath(first_xpath))
+        if xpath and not any(func in xpath for func in ['concat', 'count', 'sum', 'boolean', 'normalize-space']):
+            try:
+                result = tree.xpath(xpath)
+                if isinstance(result, list):
+                    num_items = len(result)
+                    break
+            except Exception:
+                continue
+
+    if num_items == 0 and selectors:
+        num_items = 1
+
     items = []
-
     for i in range(num_items):
         item_data = {'source_url': url}
         for field, selector_info in selectors.items():
-            xpath = selector_info.get('xpath')
+            xpath = selector_info.get('xpath') if isinstance(selector_info, dict) else selector_info
+
             if not xpath:
                 item_data[field] = ''
                 continue
 
-            elements = tree.xpath(f'({xpath})[{i + 1}]')
-            if elements:
-                el = elements[0]
-                if hasattr(el, 'text_content'):
-                    item_data[field] = el.text_content().strip()
+            try:
+                result = tree.xpath(xpath)
+
+                if isinstance(result, list):
+                    if i < len(result):
+                        element = result[i]
+                        if hasattr(element, 'text_content'):
+                            item_data[field] = element.text_content().strip()
+                        else:
+                            item_data[field] = str(element).strip()
+                    else:
+                        item_data[field] = ''
                 else:
-                    item_data[field] = str(el).strip()
-            else:
+                    item_data[field] = str(result).strip()
+
+            except Exception as e:
+                print(f'Error on field "{field}" with xpath "{xpath}": {e}')
                 item_data[field] = ''
+
         items.append(item_data)
 
     return items
@@ -112,23 +132,91 @@ async def follow_next_page(
     return await scrape_and_crawl(client, next_url, selectors, depth - 1, visited)
 
 
-async def generate_selectors_for_url(client: httpx.AsyncClient, url: str, prompt: str) -> dict[str, Any]:
+async def generate_selectors_for_url(
+    client: httpx.AsyncClient, url: str, prompt: str, validation_fail_reasoning: str
+) -> dict[str, Any]:
     """Fetches a URL's content and calls Gemini to generate selectors for it."""
     try:
         print(f'Generating selectors for: {url}')
         response = await client.get(url, follow_redirects=True)
         response.raise_for_status()
 
+        truncated_html = truncate_html(response.text)
+
         gemini_service = get_gemini_service()
         scrape_req = ScrapeRequest(
             url=url,
-            content=response.text,
+            content=truncated_html,
             user_request=prompt,
             output_format=OutputFormat.XPATH,
         )
 
-        selector_response = gemini_service.generate_selectors(scrape_req)
-        return {k: v.model_dump() for k, v in selector_response.selectors.items()}
+        selector_response = gemini_service.generate_selectors(scrape_req, validation_fail_reasoning)
+        result = {k: v.model_dump() for k, v in selector_response.selectors.items()}
+
+        # LOG GENERATED SELECTORS
+        print('Generated selectors:')
+        for field, selector_info in result.items():
+            print(f'  {field}: {selector_info.get("xpath", "N/A")}')
+
+        return result
     except Exception as e:
         print(f'Failed to generate selectors for {url}: {e}')
-        return {}  # Return empty dict on failure
+        return {}
+
+
+def truncate_html(html_content: str) -> str:
+    """Truncates HTML to only relevant content for selector generation."""
+    try:
+        tree = html.fromstring(html_content)
+
+        cleaner = Cleaner(
+            scripts=True,
+            javascript=True,
+            comments=True,
+            style=True,
+            inline_style=True,
+            embedded=True,
+            meta=True,
+            page_structure=False,
+            processing_instructions=True,
+            remove_tags=['noscript', 'iframe', 'svg'],
+        )
+        tree = cleaner.clean_html(tree)
+
+        for el in tree.xpath('//*[not(normalize-space())]'):
+            if el.tag not in ['br', 'hr', 'img']:
+                el.getparent().remove(el)
+
+        cleaned = html.tostring(tree, encoding='unicode')
+
+        return cleaned
+    except Exception as e:
+        print(f'HTML truncation failed: {e}')
+        # Fallback to original content
+        return html_content
+
+
+async def generate_selectors_and_scrape_data(
+    client: httpx.AsyncClient, request: ProcessRequest, validation_fail_reasoning: str | None
+) -> Tuple[list[dict[str, Any]], dict[str, Any]]:
+    print('Phase 1: Starting CONCURRENT selector generation.')
+    reasoning = validation_fail_reasoning or ''
+    selector_tasks = [generate_selectors_for_url(client, u.url, request.prompt, reasoning) for u in request.urls]
+    selector_results = await asyncio.gather(*selector_tasks)
+    url_to_selectors_map = {request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selectors}
+
+    if not url_to_selectors_map:
+        raise HTTPException(status_code=500, detail='Failed to generate selectors for any URL.')
+
+    print(f'Phase 2: Starting scraping for {len(url_to_selectors_map)} URLs')
+    visited_urls: set[str] = set()
+    scraping_tasks = [
+        scrape_and_crawl(client, url, selectors, request.depth, visited_urls)
+        for url, selectors in url_to_selectors_map.items()
+    ]
+    results = await asyncio.gather(*scraping_tasks)
+    all_scraped_data = [item for sublist in results for item in sublist]
+    print(f'Phase 2 complete. Total items scraped: {len(all_scraped_data)}')
+
+    return all_scraped_data, url_to_selectors_map

@@ -6,7 +6,11 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
 from app.models.scrape import ProcessRequest
-from app.services.scraping_service import generate_selectors_for_url, scrape_and_crawl
+from app.services.scraping_service import (
+    generate_selectors_for_url,
+    scrape_and_crawl,
+    generate_selectors_and_scrape_data,
+)
 from app.services.validation_service import validate_and_refine_data
 
 router = APIRouter(prefix='/api', tags=['process'])
@@ -27,47 +31,19 @@ async def process_urls(request: ProcessRequest):
     """
     print(f'Starting process_urls with {len(request.urls)} URLs, depth {request.depth}')
     print(f'Request prompt: {request.prompt}')
-    print(f'Validation Agent enabled: {request.use_validation_agent}')
 
     if not request.urls:
         raise HTTPException(status_code=400, detail='No URLs provided')
 
     async with httpx.AsyncClient(timeout=500.0) as client:
-        url_to_selectors_map = {}
+        all_scraped_data, url_to_selectors_map = await generate_selectors_and_scrape_data(client, request, None)
 
-        if request.use_validation_agent:
-            print('Phase 1: Starting SEQUENTIAL selector generation.')
-            for url_obj in request.urls:
-                selectors = await generate_selectors_for_url(client, url_obj.url, request.prompt)
-                if selectors:
-                    url_to_selectors_map[url_obj.url] = selectors
-                print('Waiting for 65 seconds before next API call...')
-                await asyncio.sleep(65)
-        else:
-            print('Phase 1: Starting CONCURRENT selector generation.')
-            selector_tasks = [generate_selectors_for_url(client, u.url, request.prompt) for u in request.urls]
-            selector_results = await asyncio.gather(*selector_tasks)
-            url_to_selectors_map = {
-                request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selectors
-            }
+        decision, reasoning = await validate_and_refine_data(client, all_scraped_data, url_to_selectors_map, request)
 
-        if not url_to_selectors_map:
-            raise HTTPException(status_code=500, detail='Failed to generate selectors for any URL.')
-
-        print(f'Phase 2: Starting scraping for {len(url_to_selectors_map)} URLs')
-        visited_urls: set[str] = set()
-        scraping_tasks = [
-            scrape_and_crawl(client, url, selectors, request.depth, visited_urls)
-            for url, selectors in url_to_selectors_map.items()
-        ]
-        results = await asyncio.gather(*scraping_tasks)
-        all_scraped_data = [item for sublist in results for item in sublist]
-        print(f'Phase 2 complete. Total items scraped: {len(all_scraped_data)}')
-
-        if request.use_validation_agent:
-            print('Waiting for 65 seconds before validation agent call...')
-            await asyncio.sleep(65)
-            all_scraped_data = await validate_and_refine_data(client, all_scraped_data, url_to_selectors_map, request)
+        if decision == 'BAD':
+            all_scraped_data, url_to_selectors_map = await generate_selectors_and_scrape_data(
+                client, request, reasoning
+            )
 
     print('Phase 3: Formatting data as CSV')
     if not all_scraped_data:

@@ -14,8 +14,6 @@ class OutputFormat(str, Enum):
     """Format of the output selectors"""
 
     XPATH = 'xpath'
-    CSS = 'css'
-    BOTH = 'both'
 
 
 class ScrapeRequest(BaseModel):
@@ -25,9 +23,7 @@ class ScrapeRequest(BaseModel):
     content: str = Field(..., description='The HTML content or DOM tree of the page')
     input_format: InputFormat = Field(default=InputFormat.HTML, description='Format of the input content (html or dom)')
     user_request: str = Field(..., description='Natural language description of what data to extract')
-    output_format: OutputFormat = Field(
-        default=OutputFormat.BOTH, description='Desired output format for selectors (xpath, css, or both)'
-    )
+    output_format: OutputFormat = Field(default=OutputFormat.XPATH, description='Desired output format for selectors')
 
     class Config:
         json_schema_extra = {
@@ -41,7 +37,7 @@ class ScrapeRequest(BaseModel):
                 ),
                 'input_format': 'html',
                 'user_request': 'Extract product name and price',
-                'output_format': 'both',
+                'output_format': 'xpath',
             }
         }
 
@@ -50,7 +46,6 @@ class Selectors(BaseModel):
     """Selectors for a specific field"""
 
     xpath: str | None = Field(None, description='XPath selector for the field')
-    css: str | None = Field(None, description='CSS selector for the field')
 
 
 class ScrapeResponse(BaseModel):
@@ -65,8 +60,8 @@ class ScrapeResponse(BaseModel):
             'example': {
                 'url': 'https://example.com/products',
                 'selectors': {
-                    'product_name': {'xpath': '//h1[@class="product-title"]/text()', 'css': 'h1.product-title'},
-                    'price': {'xpath': '//span[@class="price"]/text()', 'css': 'span.price'},
+                    'product_name': {'xpath': '//h1[@class="product-title"]/text()'},
+                    'price': {'xpath': '//span[@class="price"]/text()'},
                 },
             }
         }
@@ -91,6 +86,3 @@ class ProcessRequest(BaseModel):
     urls: list[ProcessUrlRequest]
     prompt: str
     depth: int = Field(default=1, gt=0, description='How many link levels to follow. 1 means no crawling.')
-    use_validation_agent: bool | None = Field(
-        default=False, description='Use a second agent to analyze and refine results.'
-    )
