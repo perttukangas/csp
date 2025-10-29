@@ -202,9 +202,7 @@ async def generate_selectors_and_scrape_data(
 ) -> Tuple[list[dict[str, Any]], dict[str, Any]]:
     print('Phase 1: Starting CONCURRENT selector generation.')
     reasoning = validation_fail_reasoning or ''
-    selector_tasks = [
-        generate_selectors_for_url(client, u.url, request.prompt, reasoning) for u in request.urls
-    ]
+    selector_tasks = [generate_selectors_for_url(client, u.url, request.prompt, reasoning) for u in request.urls]
     selector_results = await asyncio.gather(*selector_tasks)
     url_to_selectors_map = {request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selectors}
 
