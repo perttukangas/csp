@@ -82,6 +82,7 @@ class ProcessUrlRequest(BaseModel):
 
 class HtmlContent(BaseModel):
     """HTML content to process."""
+
     html: str
 
 

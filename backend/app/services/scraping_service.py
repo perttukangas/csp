@@ -13,9 +13,11 @@ from app.models.scrape import ProcessRequest
 from app.models.scrape import OutputFormat, ScrapeRequest
 from app.services.gemini_agent import get_gemini_service
 
+
 async def scrape_and_crawl_html(
     client: httpx.AsyncClient,
-    html_content: str, url: str,
+    html_content: str,
+    url: str,
     selectors: dict[str, Any],
     depth: int,
     visited: set[str],
@@ -173,6 +175,7 @@ async def generate_selectors_html(
         return {}
     pass
 
+
 async def generate_selectors_for_url(
     client: httpx.AsyncClient, url: str, prompt: str, validation_fail_reasoning: str
 ) -> dict[str, Any]:
@@ -228,32 +231,39 @@ async def generate_selectors_and_scrape_data(
     print('Phase 1: Starting CONCURRENT selector generation.')
     reasoning = validation_fail_reasoning or ''
     selector_tasks = [generate_selectors_for_url(client, u.url, request.prompt, reasoning) for u in request.urls]
-    selector_tasks_html = [generate_selectors_html(h.html, f'html_content_{i}', request.prompt, reasoning) for i, h in enumerate(request.htmls)]
+    selector_tasks_html = [
+        generate_selectors_html(h.html, f'html_content_{i}', request.prompt, reasoning)
+        for i, h in enumerate(request.htmls)
+    ]
 
     selector_results = await asyncio.gather(*selector_tasks)
     html_selector_results = await asyncio.gather(*selector_tasks_html)
 
-    print('html selectors ', html_selector_results )
+    print('html selectors ', html_selector_results)
 
     url_to_selectors_map = {request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selectors}
-    html_to_selectors_map = {f'html_content_{i}': selectors for i, selectors in enumerate(html_selector_results) if selectors}
+    html_to_selectors_map = {
+        f'html_content_{i}': selectors for i, selectors in enumerate(html_selector_results) if selectors
+    }
     if not url_to_selectors_map and not html_to_selectors_map:
         raise HTTPException(status_code=500, detail='Failed to generate selectors for any URL.')
 
-    print(f'Phase 2: Starting scraping for {len(url_to_selectors_map)} URLs and {len(html_to_selectors_map)} HTML contents')
+    print(
+        f'Phase 2: Starting scraping for {len(url_to_selectors_map)} URLs and {len(html_to_selectors_map)} HTML contents'
+    )
     visited_urls: set[str] = set()
     scraping_tasks = [
         scrape_and_crawl(client, url, selectors, request.depth, visited_urls)
         for url, selectors in url_to_selectors_map.items()
     ]
-    
+
     # Add HTML content scraping tasks with the actual HTML content
     for i, (html_id, selectors) in enumerate(html_to_selectors_map.items()):
         html_content = request.htmls[i].html
         scraping_tasks.append(
             scrape_and_crawl_html(client, html_content, html_id, selectors, request.depth, visited_urls)
         )
-    
+
     results = await asyncio.gather(*scraping_tasks)
     all_scraped_data = [item for sublist in results for item in sublist]
     print(f'Phase 2 complete. Total items scraped: {len(all_scraped_data)}')

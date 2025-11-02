@@ -55,9 +55,9 @@ async def process_urls(request: ProcessRequest):
     csv_content = df.to_csv(index=False)
 
     print(f'Generated CSV with {len(df.index)} rows and {len(df.columns)} columns')
-    print("-- CSV Conetent Start --")
+    print('-- CSV Conetent Start --')
     print(csv_content)
-    print("-- CSV Content End --")
+    print('-- CSV Content End --')
 
     return Response(
         content=csv_content,
