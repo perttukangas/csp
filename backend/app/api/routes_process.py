@@ -30,10 +30,12 @@ async def process_urls(request: ProcessRequest):
     2. Concurrently runs scraping/crawling tasks using the specific selectors for each URL.
     """
     print(f'Starting process_urls with {len(request.urls)} URLs, depth {request.depth}')
+    if request.htmls:
+        print(f'Starting processing of {len(request.htmls)} HTML content with prompt: {request.prompt}')
     print(f'Request prompt: {request.prompt}')
 
-    if not request.urls:
-        raise HTTPException(status_code=400, detail='No URLs provided')
+    if not request.urls and not request.htmls:
+        raise HTTPException(status_code=400, detail='No URLs or HTML content provided')
 
     async with httpx.AsyncClient(timeout=500.0) as client:
         all_scraped_data, url_to_selectors_map = await generate_selectors_and_scrape_data(client, request, None)
@@ -45,6 +47,7 @@ async def process_urls(request: ProcessRequest):
                 client, request, reasoning
             )
 
+    print(reasoning, decision)
     print('Phase 3: Formatting data as CSV')
     if not all_scraped_data:
         return 'No data could be scraped from the provided URLs.'
@@ -53,6 +56,9 @@ async def process_urls(request: ProcessRequest):
     csv_content = df.to_csv(index=False)
 
     print(f'Generated CSV with {len(df.index)} rows and {len(df.columns)} columns')
+    print("-- CSV Conetent Start --")
+    print(csv_content)
+    print("-- CSV Content End --")
 
     return Response(
         content=csv_content,
