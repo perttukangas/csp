@@ -51,7 +51,7 @@ async def scrape_and_crawl(
     if not html_content:
         return []
 
-    result = await scape_and_crawl_html(client, html_content, url, selectors, depth, visited)
+    result = await scrape_and_crawl_html(client, html_content, url, selectors, depth, visited)
     return result
 
 
