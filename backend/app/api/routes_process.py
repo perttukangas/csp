@@ -47,7 +47,6 @@ async def process_urls(request: ProcessRequest):
                 client, request, reasoning
             )
 
-    print(reasoning, decision)
     print('Phase 3: Formatting data as CSV')
     if not all_scraped_data:
         return 'No data could be scraped from the provided URLs.'
