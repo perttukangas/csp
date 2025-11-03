@@ -84,11 +84,13 @@ class ProcessUrlRequest(BaseModel):
 
     url: str
 
+
 class HtmlContent(BaseModel):
     """HTML content to process."""
 
     html: str
-    
+
+
 class VerifyRequest(BaseModel):
     """Request model for the verification endpoint."""
 
@@ -103,9 +105,6 @@ class VerifyRequest(BaseModel):
     use_validation_agent: bool | None = Field(
         default=False, description='Use a second agent to analyze and refine results.'
     )
-
-
-
 
 
 class ProcessRequest(BaseModel):

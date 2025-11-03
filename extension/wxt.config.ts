@@ -4,7 +4,14 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
-    permissions: ['tabs', 'activeTab', 'storage', 'unlimitedStorage'],
+    // Include 'downloads' so the background script can trigger CSV downloads
+    permissions: [
+      'tabs',
+      'activeTab',
+      'storage',
+      'unlimitedStorage',
+      'downloads',
+    ],
     browser_specific_settings: {
       gecko: {
         id: 'web-scraiper@csp.dev',

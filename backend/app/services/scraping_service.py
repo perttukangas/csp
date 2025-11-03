@@ -9,7 +9,7 @@ from fastapi import HTTPException
 import asyncio
 
 
-from app.models.scrape import ProcessRequest
+from app.models.scrape import ProcessRequest, VerifyRequest
 from app.models.scrape import OutputFormat, ScrapeRequest
 from app.services.gemini_agent import get_gemini_service
 
@@ -234,7 +234,7 @@ def truncate_html(html_content: str) -> str:
 
 
 async def generate_selectors_and_scrape_data(
-    client: httpx.AsyncClient, request: ProcessRequest, validation_fail_reasoning: str | None
+    client: httpx.AsyncClient, request: ProcessRequest | VerifyRequest, validation_fail_reasoning: str | None
 ) -> Tuple[list[dict[str, Any]], dict[str, Any]]:
     print('Phase 1: Starting CONCURRENT selector generation.')
     reasoning = validation_fail_reasoning or ''
@@ -251,7 +251,9 @@ async def generate_selectors_and_scrape_data(
 
     print('html selectors ', html_selector_results)
 
-    url_to_selectors_map = {request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selector_results}
+    url_to_selectors_map = {
+        request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selector_results
+    }
     html_to_selectors_map = {
         f'html_content_{i}': selectors for i, selectors in enumerate(html_selector_results) if selectors
     }
@@ -316,7 +318,9 @@ async def analyse_and_extract_for_url(client: httpx.AsyncClient, url: str, promp
         return []
 
 
-async def analyse_and_extract(client: httpx.AsyncClient, request: ProcessRequest) -> list[dict[str, Any]]:
+async def analyse_and_extract(
+    client: httpx.AsyncClient, request: ProcessRequest | VerifyRequest
+) -> list[dict[str, Any]]:
     """Fetches a URL's content and calls Gemini to analyse and extract data from it."""
     print('Analysis only mode: Starting scraping without selector generation or crawling.')
     analysis_tasks = [analyse_and_extract_for_url(client, u.url, request.prompt) for u in request.urls]

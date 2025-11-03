@@ -3,13 +3,16 @@ import asyncio
 import httpx
 import pandas as pd
 
-from app.models.scrape import ProcessRequest
+from app.models.scrape import ProcessRequest, VerifyRequest
 from app.services.gemini_agent import get_gemini_service
 from app.services.scraping_service import scrape_and_crawl
 
 
 async def validate_and_refine_data(
-    client: httpx.AsyncClient, initial_data: list[dict], original_selectors_map: dict, request: ProcessRequest
+    client: httpx.AsyncClient,
+    initial_data: list[dict],
+    original_selectors_map: dict,
+    request: ProcessRequest | VerifyRequest,
 ) -> tuple[str, str]:
     if not initial_data:
         return 'BAD', 'No data scraped.'

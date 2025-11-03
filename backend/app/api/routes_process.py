@@ -33,8 +33,10 @@ async def verify_sample(request: VerifyRequest):
     # Limit to first 3 URLs and HTMLs
     limited_urls = request.urls[:3] if request.urls else []
     limited_htmls = request.htmls[:3] if request.htmls else []
-    
-    print(f'Starting verify_sample with {len(limited_urls)} URLs and {len(limited_htmls)} HTMLs, depth {request.depth}, crawling {request.crawl}')
+
+    print(
+        f'Starting verify_sample with {len(limited_urls)} URLs and {len(limited_htmls)} HTMLs, depth {request.depth}, crawling {request.crawl}'
+    )
     print(f'Check for analysis mode override: {request.analysis_only}')
     if limited_htmls:
         print(f'Starting processing of {len(limited_htmls)} HTML content with prompt: {request.prompt}')
@@ -56,7 +58,9 @@ async def verify_sample(request: VerifyRequest):
 
     async with httpx.AsyncClient(timeout=500.0) as client:
         if not limited_request.analysis_only:
-            all_scraped_data, url_to_selectors_map = await generate_selectors_and_scrape_data(client, limited_request, None)
+            all_scraped_data, url_to_selectors_map = await generate_selectors_and_scrape_data(
+                client, limited_request, None
+            )
 
             decision, reasoning = await validate_and_refine_data(
                 client, all_scraped_data, url_to_selectors_map, limited_request

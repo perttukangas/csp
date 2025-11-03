@@ -591,18 +591,41 @@ export class BackgroundService {
         response.ok
       );
 
+      // Debug: log headers for troubleshooting download issues
+      try {
+        const headersArray = Array.from(response.headers.entries());
+        console.log('📥 Response headers:', headersArray);
+      } catch (hdrErr) {
+        console.warn('⚠️ Could not read response headers:', hdrErr);
+      }
+
       if (response.ok) {
         // Service workers don't have access to URL.createObjectURL, so just read as text and return to popup
         try {
           const contentType = response.headers.get('content-type') || '';
-          const contentDisposition = response.headers.get('content-disposition') || '';
+          const contentDisposition =
+            response.headers.get('content-disposition') || '';
           const contentLength = response.headers.get('content-length') || '';
-          console.log('📌 content-type:', contentType, 'content-disposition:', contentDisposition, 'content-length:', contentLength);
+          console.log(
+            '📌 content-type:',
+            contentType,
+            'content-disposition:',
+            contentDisposition,
+            'content-length:',
+            contentLength
+          );
 
           // Read response as text and let the popup handle download
           const csvText = await response.text();
-          console.log('ℹ️ Returning CSV text to popup for download, length:', csvText.length);
-          return { success: true, sent: validatedResponses.length, csvContent: csvText };
+          console.log(
+            'ℹ️ Returning CSV text to popup for download, length:',
+            csvText.length
+          );
+          return {
+            success: true,
+            sent: validatedResponses.length,
+            csvContent: csvText,
+          };
         } catch (err) {
           console.error('💥 Error reading server response:', err);
           return { success: false, error: 'Failed to read server response' };
@@ -642,7 +665,9 @@ export class BackgroundService {
 
       // Take first 3 responses for verification
       const verificationResponses = validatedResponses.slice(0, 3);
-      console.log(`🔍 Verifying first ${verificationResponses.length} responses`);
+      console.log(
+        `🔍 Verifying first ${verificationResponses.length} responses`
+      );
 
       // Get the current prompt and settings
       const currentPrompt = await this.getPropmpt();
@@ -654,16 +679,23 @@ export class BackgroundService {
       console.log('🔍 Analysis mode:', isAnalysisMode);
 
       // Separate URLs and HTMLs
-      const verificationUrls = verificationResponses.filter(r => r.type === 'url');
-      const verificationHtmls = verificationResponses.filter(r => r.type === 'html');
+      const verificationUrls = verificationResponses.filter(
+        r => r.type === 'url'
+      );
+      const verificationHtmls = verificationResponses.filter(
+        r => r.type === 'html'
+      );
 
       console.log(
         `🌐 Preparing to send ${verificationUrls.length} URLs and ${verificationHtmls.length} HTML contents for verification`
       );
 
       // Send verification request to the server
-      const backendUrl = 'http://localhost:8000';
-      console.log(`🌐 Making verification HTTP request to ${backendUrl}/api/verify`);
+      const backendUrl =
+        import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+      console.log(
+        `🌐 Making verification HTTP request to ${backendUrl}/api/verify`
+      );
       const response = await fetch(`${backendUrl}/api/verify`, {
         method: 'POST',
         headers: {
@@ -697,7 +729,10 @@ export class BackgroundService {
         );
         return { success: true, csvContent };
       } else {
-        console.error('❌ Verification server returned error:', response.status);
+        console.error(
+          '❌ Verification server returned error:',
+          response.status
+        );
         return { success: false, error: `Server error: ${response.status}` };
       }
     } catch (error) {

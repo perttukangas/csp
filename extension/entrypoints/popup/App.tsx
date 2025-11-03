@@ -24,7 +24,9 @@ function App() {
   const [validatedHtmlCount, setValidatedHtmlCount] = useState(0);
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [verificationResult, setVerificationResult] = useState<string | null>(null);
+  const [verificationResult, setVerificationResult] = useState<string | null>(
+    null
+  );
   const [showVerification, setShowVerification] = useState(false);
   const [isCrawlingMode, setIsCrawlingMode] = useState(false);
   const [isAnalysisMode, setIsAnalysisMode] = useState(false);
@@ -206,7 +208,9 @@ function App() {
         // If the background returned CSV content as text, trigger download in the popup (DOM available here)
         if (result.csvContent) {
           try {
-            const blob = new Blob([result.csvContent], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([result.csvContent], {
+              type: 'text/csv;charset=utf-8;',
+            });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -218,7 +222,9 @@ function App() {
             console.log('✅ Triggered download from popup for CSV content');
           } catch (dlErr) {
             console.error('Failed to trigger download from popup:', dlErr);
-            alert('Processed but automatic download failed; check background console for details.');
+            alert(
+              'Processed but automatic download failed; check background console for details.'
+            );
           }
         }
         // Refresh the counts after sending
@@ -256,7 +262,9 @@ function App() {
         // If the background returned CSV content as text, trigger download in the popup (DOM available here)
         if (result.csvContent) {
           try {
-            const blob = new Blob([result.csvContent], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([result.csvContent], {
+              type: 'text/csv;charset=utf-8;',
+            });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -265,10 +273,14 @@ function App() {
             a.click();
             a.remove();
             setTimeout(() => URL.revokeObjectURL(url), 30000);
-            console.log('✅ Triggered download from popup for verification CSV');
+            console.log(
+              '✅ Triggered download from popup for verification CSV'
+            );
           } catch (dlErr) {
             console.error('Failed to trigger download from popup:', dlErr);
-            alert('Processed but automatic download failed; check background console for details.');
+            alert(
+              'Processed but automatic download failed; check background console for details.'
+            );
           }
         }
       } else {
@@ -401,11 +413,9 @@ function App() {
               onClick={handleVerifySample}
               disabled={isVerifying || validatedCount === 0}
             >
-              {isVerifying
-                ? '⟳ Verifying...'
-                : `🔍 Verify Sample (3 URLs)`}
+              {isVerifying ? '⟳ Verifying...' : `🔍 Verify Sample (3 URLs)`}
             </button>
-            
+
             <button
               className="send-button"
               onClick={handleSendValidated}
