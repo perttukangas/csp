@@ -1,4 +1,4 @@
-## 27.10
+## 3.11
 
 - Improve authenticated scraping #22
 - Optimize the agent(s) #23
