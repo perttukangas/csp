@@ -14,6 +14,27 @@ from app.models.scrape import OutputFormat, ScrapeRequest
 from app.services.gemini_agent import get_gemini_service
 
 
+async def scrape_and_crawl_html(
+    client: httpx.AsyncClient,
+    html_content: str,
+    url: str,
+    selectors: dict[str, Any],
+    depth: int,
+    visited: set[str],
+):
+    tree = html.fromstring(html_content)
+    data_selectors = selectors.copy()
+    next_page_selector_info = data_selectors.pop('next_page_selector', None)
+
+    scraped_items = extract_items(tree, data_selectors, url)
+
+    if depth > 1 and next_page_selector_info:
+        next_items = await follow_next_page(client, url, tree, next_page_selector_info, selectors, depth, visited)
+        scraped_items.extend(next_items)
+
+    return scraped_items
+
+
 async def scrape_and_crawl(
     client: httpx.AsyncClient,
     url: str,
@@ -32,17 +53,8 @@ async def scrape_and_crawl(
     if not html_content:
         return []
 
-    tree = html.fromstring(html_content)
-    data_selectors = selectors.copy()
-    next_page_selector_info = data_selectors.pop('next_page_selector', None)
-
-    scraped_items = extract_items(tree, data_selectors, url)
-
-    if depth > 1 and next_page_selector_info:
-        next_items = await follow_next_page(client, url, tree, next_page_selector_info, selectors, depth, visited)
-        scraped_items.extend(next_items)
-
-    return scraped_items
+    result = await scrape_and_crawl_html(client, html_content, url, selectors, depth, visited)
+    return result
 
 
 async def fetch_html(client: httpx.AsyncClient, url: str) -> str | None:
@@ -132,16 +144,14 @@ async def follow_next_page(
     return await scrape_and_crawl(client, next_url, selectors, depth - 1, visited)
 
 
-async def generate_selectors_for_url(
-    client: httpx.AsyncClient, url: str, prompt: str, validation_fail_reasoning: str
+async def generate_selectors_html(
+    html_content: str, url: str, prompt: str, validation_fail_reasoning: str
 ) -> dict[str, Any]:
-    """Fetches a URL's content and calls Gemini to generate selectors for it."""
     try:
-        print(f'Generating selectors for: {url}')
-        response = await client.get(url, follow_redirects=True)
-        response.raise_for_status()
+        truncated_html = truncate_html(html_content)
 
-        truncated_html = truncate_html(response.text)
+        print('Trunecated HTML for selector generation.')
+        print(truncated_html[:100] + '...')
 
         gemini_service = get_gemini_service()
         scrape_req = ScrapeRequest(
@@ -158,6 +168,24 @@ async def generate_selectors_for_url(
         print('Generated selectors:')
         for field, selector_info in result.items():
             print(f'  {field}: {selector_info.get("xpath", "N/A")}')
+
+        return result
+    except Exception as e:
+        print(f'Failed to generate selectors for {url}: {e}')
+        return {}
+    pass
+
+
+async def generate_selectors_for_url(
+    client: httpx.AsyncClient, url: str, prompt: str, validation_fail_reasoning: str
+) -> dict[str, Any]:
+    """Fetches a URL's content and calls Gemini to generate selectors for it."""
+    try:
+        print(f'Generating selectors for: {url}')
+        response = await client.get(url, follow_redirects=True)
+        response.raise_for_status()
+
+        result = await generate_selectors_html(response.text, url, prompt, validation_fail_reasoning)
 
         return result
     except Exception as e:
@@ -203,20 +231,43 @@ async def generate_selectors_and_scrape_data(
     print('Phase 1: Starting CONCURRENT selector generation.')
     reasoning = validation_fail_reasoning or ''
     selector_tasks = [generate_selectors_for_url(client, u.url, request.prompt, reasoning) for u in request.urls]
-    selector_results = await asyncio.gather(*selector_tasks)
-    url_to_selectors_map = {request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selectors}
+    selector_tasks_html = [
+        generate_selectors_html(h.html, f'html_content_{i}', request.prompt, reasoning)
+        for i, h in enumerate(request.htmls)
+    ]
 
-    if not url_to_selectors_map:
+    selector_results = await asyncio.gather(*selector_tasks)
+    html_selector_results = await asyncio.gather(*selector_tasks_html)
+
+    print('html selectors ', html_selector_results)
+
+    url_to_selectors_map = {request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selectors}
+    html_to_selectors_map = {
+        f'html_content_{i}': selectors for i, selectors in enumerate(html_selector_results) if selectors
+    }
+    if not url_to_selectors_map and not html_to_selectors_map:
         raise HTTPException(status_code=500, detail='Failed to generate selectors for any URL.')
 
-    print(f'Phase 2: Starting scraping for {len(url_to_selectors_map)} URLs')
+    print(
+        f'Phase 2: Starting scraping for {len(url_to_selectors_map)} URLs and {len(html_to_selectors_map)} HTML contents'
+    )
     visited_urls: set[str] = set()
     scraping_tasks = [
         scrape_and_crawl(client, url, selectors, request.depth, visited_urls)
         for url, selectors in url_to_selectors_map.items()
     ]
+
+    # Add HTML content scraping tasks with the actual HTML content
+    for i, (html_id, selectors) in enumerate(html_to_selectors_map.items()):
+        html_content = request.htmls[i].html
+        scraping_tasks.append(
+            scrape_and_crawl_html(client, html_content, html_id, selectors, request.depth, visited_urls)
+        )
+
     results = await asyncio.gather(*scraping_tasks)
     all_scraped_data = [item for sublist in results for item in sublist]
     print(f'Phase 2 complete. Total items scraped: {len(all_scraped_data)}')
 
-    return all_scraped_data, url_to_selectors_map
+    # Combine both maps for return
+    combined_selectors_map = {**url_to_selectors_map, **html_to_selectors_map}
+    return all_scraped_data, combined_selectors_map

@@ -3,12 +3,14 @@ import './App.css';
 import { browser } from 'wxt/browser';
 import { extensionStorage } from '../../utils/storage';
 import UrlsList from './UrlsList';
+import StorageView from './StorageView';
 import { ScrapeResponse } from '../background/BackgroundService';
 
 export enum Tab {
   CONTROLS = 'controls',
   URLS = 'urls',
   HTMLS = 'htmls',
+  STORAGE = 'storage',
 }
 
 function App() {
@@ -185,6 +187,12 @@ function App() {
             <span className="badge">{pendingValidationsHtml}</span>
           )}
         </button>
+        <button
+          className={`tab-button ${activeTab === Tab.STORAGE ? 'active' : ''}`}
+          onClick={() => setActiveTab(Tab.STORAGE)}
+        >
+          Storage
+        </button>
       </div>
 
       {/* Controls Tab */}
@@ -248,6 +256,14 @@ function App() {
         onValidationUpdate={loadPendingValidations}
         tab={activeTab}
       />
+
+      {/* Storage Tab */}
+      {activeTab === Tab.STORAGE && (
+        <StorageView
+          isVisible={activeTab === Tab.STORAGE}
+          onStorageUpdate={() => {}}
+        />
+      )}
     </>
   );
 }

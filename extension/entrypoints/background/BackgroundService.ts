@@ -174,23 +174,152 @@ export class BackgroundService {
   }
 
   async getStorageInfo(): Promise<{
+    bytesInUse: number;
+    quotaBytes: number;
+    percentageUsed: number;
+    isLocal: boolean;
+    breakdown: Array<{
+      key: string;
+      size: number;
+      percentage: number;
+      storageType: 'sync' | 'local';
+    }>;
     syncUsage: number;
     localUsage: number;
     totalResponses: number;
   }> {
     try {
-      const syncData = await browser.storage.sync.getBytesInUse();
-      const localData = await browser.storage.local.getBytesInUse();
-      const totalResponses = (await this.getStoredResponses()).length;
+      console.log('📊 Getting comprehensive storage info...');
+
+      // Get data from both storage types
+      const syncData = await browser.storage.sync.get();
+      const localData = await browser.storage.local.get();
+
+      console.log('📦 Sync storage data:', syncData);
+      console.log('📦 Local storage data:', localData);
+
+      // Calculate bytes in use for both storage types
+      let syncUsage = 0;
+      let localUsage = 0;
+
+      try {
+        syncUsage = await browser.storage.sync.getBytesInUse();
+        localUsage = await browser.storage.local.getBytesInUse();
+      } catch (error) {
+        console.warn('getBytesInUse() not supported, calculating manually');
+        syncUsage = new Blob([JSON.stringify(syncData)]).size;
+        localUsage = new Blob([JSON.stringify(localData)]).size;
+      }
+
+      const totalBytesUsed = syncUsage + localUsage;
+
+      // Storage limits (Chrome limits)
+      const syncQuota = 102400; // 100KB
+      const localQuota = 5242880; // 5MB
+
+      // Use local storage quota if we have local data, otherwise sync
+      const primaryQuota = localUsage > 0 ? localQuota : syncQuota;
+      const isLocal = localUsage > syncUsage;
+
+      // Calculate percentage based on the primary storage type being used
+      const percentageUsed = (totalBytesUsed / primaryQuota) * 100;
+
+      console.log('📊 Storage calculations:', {
+        syncUsage,
+        localUsage,
+        totalBytesUsed,
+        syncQuota,
+        localQuota,
+        primaryQuota,
+        isLocal,
+        percentageUsed,
+      });
+
+      // Create detailed breakdown
+      const breakdown: Array<{
+        key: string;
+        size: number;
+        percentage: number;
+        storageType: 'sync' | 'local';
+      }> = [];
+
+      // Add sync storage items
+      for (const [key, value] of Object.entries(syncData)) {
+        try {
+          const size = new Blob([JSON.stringify(value)]).size;
+          const percentage =
+            totalBytesUsed > 0 ? (size / totalBytesUsed) * 100 : 0;
+          breakdown.push({
+            key,
+            size,
+            percentage,
+            storageType: 'sync',
+          });
+        } catch (error) {
+          console.warn(
+            `Failed to calculate size for sync key "${key}":`,
+            error
+          );
+        }
+      }
+
+      // Add local storage items
+      for (const [key, value] of Object.entries(localData)) {
+        try {
+          const size = new Blob([JSON.stringify(value)]).size;
+          const percentage =
+            totalBytesUsed > 0 ? (size / totalBytesUsed) * 100 : 0;
+          breakdown.push({
+            key: `${key} (local)`,
+            size,
+            percentage,
+            storageType: 'local',
+          });
+        } catch (error) {
+          console.warn(
+            `Failed to calculate size for local key "${key}":`,
+            error
+          );
+        }
+      }
+
+      // Sort by size (largest first)
+      breakdown.sort((a, b) => b.size - a.size);
+
+      const responses = await this.getStoredResponses();
+
+      console.log('📊 Storage info calculated:', {
+        bytesInUse: totalBytesUsed,
+        quotaBytes: primaryQuota,
+        percentageUsed,
+        syncUsage,
+        localUsage,
+        totalResponses: responses.length,
+        breakdown: breakdown.length,
+      });
 
       return {
-        syncUsage: syncData,
-        localUsage: localData,
-        totalResponses,
+        bytesInUse: totalBytesUsed,
+        quotaBytes: primaryQuota,
+        percentageUsed: Math.min(percentageUsed, 100),
+        isLocal,
+        breakdown,
+        syncUsage,
+        localUsage,
+        totalResponses: responses.length,
       };
     } catch (error) {
       console.error('Failed to get storage info:', error);
-      return { syncUsage: 0, localUsage: 0, totalResponses: 0 };
+      return {
+        bytesInUse: 0,
+        quotaBytes: 0,
+        percentageUsed: 0,
+        isLocal: true,
+        breakdown: [],
+        syncUsage: 0,
+        localUsage: 0,
+        totalResponses: 0,
+      };
     }
   }
 
@@ -651,6 +780,22 @@ export class BackgroundService {
         })
         .catch(error => {
           console.error('💥 Error validating all pending responses:', error);
+          sendResponse({ success: false, error: error.message });
+        });
+
+      return true;
+    }
+
+    if (message.type === 'GET_STORAGE_USAGE') {
+      console.log('📨 Received request to get storage usage');
+
+      this.getStorageInfo()
+        .then(storageInfo => {
+          console.log('📤 Storage info result:', storageInfo);
+          sendResponse({ success: true, storageInfo });
+        })
+        .catch(error => {
+          console.error('💥 Error getting storage info:', error);
           sendResponse({ success: false, error: error.message });
         });
 
