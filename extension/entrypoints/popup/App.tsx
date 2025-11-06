@@ -359,7 +359,7 @@ function App() {
       {activeTab === Tab.STORAGE && (
         <StorageView
           isVisible={activeTab === Tab.STORAGE}
-          onStorageUpdate={() => { }}
+          onStorageUpdate={() => {}}
         />
       )}
     </>
