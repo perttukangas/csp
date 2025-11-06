@@ -177,7 +177,7 @@ Reasoning: {validation_fail_reasoning}
                 raise ValueError("Gemini output must be a JSON list of records suitable for CSV conversion.")
         except json.JSONDecodeError as e:
             raise ValueError(f'Invalid JSON in Gemini response: {e}\nRaw output:\n{raw_output}') from e
-
+        #Might be a good idea to make an analysis response model separately
         return ScrapeResponse(
             url=request.url,
             selectors=None,  # Not used in analysis mode
