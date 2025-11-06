@@ -296,9 +296,9 @@ async def analyse_and_extract_for_url(client: httpx.AsyncClient, url: str, promp
             crawl=False,
         )
 
-        analysis_response = gemini_service.analyse_and_extract(scrape_req)
+        analysis_response = gemini_service.analyze_and_extract(scrape_req)
 
-        scraped_items = analysis_response.extrgiacted_data
+        scraped_items = analysis_response.extracted_data
 
         print(f'Extraction complete. Items extracted: {len(scraped_items)}')
         return scraped_items
