@@ -59,7 +59,6 @@ jobs:
       working-directory: ./backend
       run: |
         uv sync --dev
-        uv add --group dev mypy types-requests
     
     - name: Run type checking
       working-directory: ./backend

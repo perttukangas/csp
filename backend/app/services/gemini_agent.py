@@ -206,7 +206,7 @@ Reasoning: {validation_fail_reasoning}
         parsed = self._parse_gemini_response(raw_output)
         selectors = {name: Selectors(xpath=data.get('xpath')) for name, data in parsed['selectors'].items()}
 
-        return ScrapeResponse(url=request.url, selectors=selectors, raw_output=raw_output)
+        return ScrapeResponse(url=request.url, selectors=selectors, raw_output=raw_output, extracted_data=None)
 
     def validate_and_refine_selectors(self, validation_prompt: str) -> dict:
         try:

@@ -56,7 +56,9 @@ class ScrapeResponse(BaseModel):
     url: str = Field(..., description='The URL that was analyzed')
     selectors: dict[str, Selectors] | None = Field(None, description='Generated selectors for each requested field')
     raw_output: str | None = Field(None, description='Raw output from the AI model (for debugging)')
-    extracted_data: list[dict[str, Any]] | None = Field(None, description='Extracted structured data (for analysis mode)')
+    extracted_data: list[dict[str, Any]] | None = Field(
+        None, description='Extracted structured data (for analysis mode)'
+    )
 
     class Config:
         json_schema_extra = {

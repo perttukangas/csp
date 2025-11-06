@@ -165,6 +165,11 @@ async def generate_selectors_html(
         )
 
         selector_response = gemini_service.generate_selectors(scrape_req, validation_fail_reasoning)
+
+        if selector_response.selectors is None:
+            print(f'No selectors generated for {url}')
+            return {}
+
         result = {k: v.model_dump() for k, v in selector_response.selectors.items()}
 
         # LOG GENERATED SELECTORS
@@ -299,6 +304,10 @@ async def analyse_and_extract_for_url(client: httpx.AsyncClient, url: str, promp
         analysis_response = gemini_service.analyze_and_extract(scrape_req)
 
         scraped_items = analysis_response.extracted_data
+
+        if scraped_items is None:
+            print(f'No data extracted for {url}')
+            return []
 
         print(f'Extraction complete. Items extracted: {len(scraped_items)}')
         return scraped_items
