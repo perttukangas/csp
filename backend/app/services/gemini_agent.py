@@ -50,6 +50,8 @@ def get_format_instructions(fmt: OutputFormat) -> str:
     - Use contains() for partial matches when appropriate
     - For case-insensitive matching, use translate() function to normalize case
     """
+
+
 def get_analysis_instructions() -> str:
     """Returns instructions for analysis-only mode."""
     return """You are an expert web scraping AI agent that extracts structured data from HTML/DOM content.
@@ -81,6 +83,7 @@ def get_analysis_instructions() -> str:
     - Exclude empty or null entries.
     """
 
+
 # ------------------------------------------------------------
 # 🔹 Main service class
 # ------------------------------------------------------------
@@ -105,7 +108,6 @@ class GeminiAgentService:
 
         if request.crawl:
             full_prompt += "\n\nCrawling Instructions:\n- When generating selectors, consider that the page may be crawled to additional depths. If so, ensure selectors remain valid for linked pages and generate an additional selector with the name 'next_page_selector'."
-
 
         return types.Content(parts=[types.Part(text=full_prompt)])
 
@@ -174,15 +176,15 @@ Reasoning: {validation_fail_reasoning}
         try:
             parsed_data = json.loads(raw_output)
             if not isinstance(parsed_data, list):
-                raise ValueError("Gemini output must be a JSON list of records suitable for CSV conversion.")
+                raise ValueError('Gemini output must be a JSON list of records suitable for CSV conversion.')
         except json.JSONDecodeError as e:
             raise ValueError(f'Invalid JSON in Gemini response: {e}\nRaw output:\n{raw_output}') from e
-        #Might be a good idea to make an analysis response model separately
+        # Might be a good idea to make an analysis response model separately
         return ScrapeResponse(
             url=request.url,
             selectors=None,  # Not used in analysis mode
             raw_output=raw_output,
-            extracted_data=parsed_data  # new optional field for structured data
+            extracted_data=parsed_data,  # new optional field for structured data
         )
 
     def generate_selectors(self, request: ScrapeRequest, validation_fail_reasoning: str) -> ScrapeResponse:

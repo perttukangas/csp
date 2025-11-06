@@ -32,16 +32,20 @@ async def process_urls(request: ProcessRequest):
     """
     print(f'Starting process_urls with {len(request.urls)} URLs, depth {request.depth}, crawling {request.crawl}')
     print(f'Check for analysis mode override: {request.analysis_only}')
+    if request.htmls:
+        print(f'Starting processing of {len(request.htmls)} HTML content with prompt: {request.prompt}')
     print(f'Request prompt: {request.prompt}')
 
-    if not request.urls:
-        raise HTTPException(status_code=400, detail='No URLs provided')
+    if not request.urls and not request.htmls:
+        raise HTTPException(status_code=400, detail='No URLs or HTML content provided')
 
     async with httpx.AsyncClient(timeout=500.0) as client:
         if not request.analysis_only:
             all_scraped_data, url_to_selectors_map = await generate_selectors_and_scrape_data(client, request, None)
 
-            decision, reasoning = await validate_and_refine_data(client, all_scraped_data, url_to_selectors_map, request)
+            decision, reasoning = await validate_and_refine_data(
+                client, all_scraped_data, url_to_selectors_map, request
+            )
 
             if decision == 'BAD':
                 all_scraped_data, url_to_selectors_map = await generate_selectors_and_scrape_data(
@@ -59,6 +63,9 @@ async def process_urls(request: ProcessRequest):
     csv_content = df.to_csv(index=False)
 
     print(f'Generated CSV with {len(df.index)} rows and {len(df.columns)} columns')
+    print('-- CSV Conetent Start --')
+    print(csv_content)
+    print('-- CSV Content End --')
 
     return Response(
         content=csv_content,

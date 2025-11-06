@@ -1,3 +1,19 @@
+## 3.11
+
+- Improve authenticated scraping #22
+- Optimize the agent(s) #23
+
+Not yet completed due to challenges, but getting there:
+
+- 2 phase processing for urls #12
+- Crawling along different next page links #13
+
+What is planned next:
+
+- Alternative extract mode #27
+- Testing basic functionality on different sites #28
+- Testing auth scraping #29
+
 ## 27.10
 
 - Experiement with subagent #11

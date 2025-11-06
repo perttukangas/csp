@@ -24,6 +24,7 @@ class ScrapeRequest(BaseModel):
     input_format: InputFormat = Field(default=InputFormat.HTML, description='Format of the input content (html or dom)')
     user_request: str = Field(..., description='Natural language description of what data to extract')
     output_format: OutputFormat = Field(default=OutputFormat.XPATH, description='Desired output format for selectors')
+    crawl: bool = Field(default=False, description='Whether to enable crawling for the URLs.')
 
     class Config:
         json_schema_extra = {
@@ -80,11 +81,20 @@ class ProcessUrlRequest(BaseModel):
     url: str
 
 
+class HtmlContent(BaseModel):
+    """HTML content to process."""
+
+    html: str
+
+
 class ProcessRequest(BaseModel):
     """Request model for the main processing endpoint."""
 
-    urls: list[ProcessUrlRequest]
+    urls: list[ProcessUrlRequest] = Field(default_factory=list)
+    htmls: list[HtmlContent] = Field(default_factory=list)
     prompt: str
     depth: int = Field(default=10, gt=0, description='How many link levels to follow. 1 means no crawling.')
     crawl: bool = Field(default=False, description='Whether to enable crawling for the URLs.')
-    analysis_only: bool = Field(default=False, description='If true, analyze the page and extract data directly without crawling.')
+    analysis_only: bool = Field(
+        default=False, description='If true, analyze the page and extract data directly without crawling.'
+    )

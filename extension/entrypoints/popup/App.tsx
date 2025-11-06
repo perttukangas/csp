@@ -3,12 +3,14 @@ import './App.css';
 import { browser } from 'wxt/browser';
 import { extensionStorage } from '../../utils/storage';
 import UrlsList from './UrlsList';
+import StorageView from './StorageView';
 import { ScrapeResponse } from '../background/BackgroundService';
 
 export enum Tab {
   CONTROLS = 'controls',
   URLS = 'urls',
   HTMLS = 'htmls',
+  STORAGE = 'storage',
 }
 
 function App() {
@@ -112,7 +114,7 @@ function App() {
     }
   };
 
-   const handleToggleCrawling = async (enabled: boolean) => {
+  const handleToggleCrawling = async (enabled: boolean) => {
     try {
       setIsCrawlingMode(enabled);
       await extensionStorage.set('crawlingMode', enabled);
@@ -127,7 +129,6 @@ function App() {
       console.error('Failed to update crawling mode:', error);
     }
   };
-
 
   const handlePromptChange = async (newPrompt: string) => {
     try {
@@ -206,6 +207,12 @@ function App() {
             <span className="badge">{pendingValidationsHtml}</span>
           )}
         </button>
+        <button
+          className={`tab-button ${activeTab === Tab.STORAGE ? 'active' : ''}`}
+          onClick={() => setActiveTab(Tab.STORAGE)}
+        >
+          Storage
+        </button>
       </div>
 
       {/* Controls Tab */}
@@ -259,7 +266,7 @@ function App() {
                 : '🔴 Crawling Mode Disabled'}
             </span>
           </div>
-          
+
           <div className="send-section">
             <button
               className="send-button"
@@ -288,6 +295,14 @@ function App() {
         onValidationUpdate={loadPendingValidations}
         tab={activeTab}
       />
+
+      {/* Storage Tab */}
+      {activeTab === Tab.STORAGE && (
+        <StorageView
+          isVisible={activeTab === Tab.STORAGE}
+          onStorageUpdate={() => {}}
+        />
+      )}
     </>
   );
 }
