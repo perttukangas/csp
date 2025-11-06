@@ -245,7 +245,7 @@ async  def analyse_and_extract_for_url(
 
         analysis_response = gemini_service.analyse_and_extract(scrape_req)
 
-        scraped_items = analysis_response.extracted_data
+        scraped_items = analysis_response.extrgiacted_data
 
         print(f'Extraction complete. Items extracted: {len(scraped_items)}')
         return scraped_items
