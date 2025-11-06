@@ -417,6 +417,8 @@ export class BackgroundService {
 
       // Get the current prompt
       const currentPrompt = await this.getPropmpt();
+      const isCrawlingMode = await extensionStorage.get('isCrawlingMode', false);
+
       console.log('📝 Current prompt:', currentPrompt);
 
       const validatedUrls = validatedResponses.filter(r => r.type === 'url');
@@ -430,7 +432,7 @@ export class BackgroundService {
       const backendUrl =
         import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
       console.log(`🌐 Making HTTP request to ${backendUrl}/api/process`);
-      const response = await fetch(`${backendUrl}/api/process`, {
+         const response = await fetch(`${backendUrl}/api/process`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -442,7 +444,8 @@ export class BackgroundService {
           htmls: validatedHtmls.map(r => ({
             html: r.html,
           })),
-          prompt: currentPrompt || '',
+          prompt: currentPrompt,
+          crawl: isCrawlingMode,
         }),
       });
 
@@ -546,6 +549,15 @@ export class BackgroundService {
       }
 
       sendResponse({ success: true });
+      return true;
+    }
+
+    if (message.type === 'CRAWLING_TOGGLED') {
+      //this is the minimum change to add some message. I dont know what else to add here
+
+      console.log(
+        `🕷️ Crawling mode ${message.enabled ? 'enabled' : 'disabled'} from popup`
+      );
       return true;
     }
 

@@ -21,6 +21,7 @@ function App() {
   const [validatedCount, setValidatedCount] = useState(0);
   const [validatedHtmlCount, setValidatedHtmlCount] = useState(0);
   const [isSending, setIsSending] = useState(false);
+  const [isCrawlingMode, setIsCrawlingMode] = useState(false);
 
   // Load pending validations count
   const loadPendingValidations = async () => {
@@ -79,6 +80,9 @@ function App() {
         setPrompt(prompt || '');
         setIsTrackingEnabled(trackingEnabled || false);
 
+        const crawlingMode = await extensionStorage.get('crawlingMode', false);
+        setIsCrawlingMode(crawlingMode);
+
         // Load pending validations
         await loadPendingValidations();
       } catch (error) {
@@ -107,6 +111,23 @@ function App() {
       console.error('Failed to update tracking setting:', error);
     }
   };
+
+   const handleToggleCrawling = async (enabled: boolean) => {
+    try {
+      setIsCrawlingMode(enabled);
+      await extensionStorage.set('crawlingMode', enabled);
+
+      await browser.runtime.sendMessage({
+        type: 'CRAWLING_TOGGLED',
+        enabled: enabled,
+      });
+
+      console.log(`Crawling mode ${enabled ? 'enabled' : 'disabled'}`);
+    } catch (error) {
+      console.error('Failed to update crawling mode:', error);
+    }
+  };
+
 
   const handlePromptChange = async (newPrompt: string) => {
     try {
@@ -220,6 +241,25 @@ function App() {
             </span>
           </div>
 
+          <div
+            className="checkbox-container"
+            onClick={() => handleToggleCrawling(!isCrawlingMode)}
+          >
+            <input
+              type="checkbox"
+              checked={isCrawlingMode}
+              onChange={e => handleToggleCrawling(e.target.checked)}
+              onClick={e => e.stopPropagation()}
+            />
+            <span
+              className={`status-text ${isCrawlingMode ? 'enabled' : 'disabled'}`}
+            >
+              {isCrawlingMode
+                ? '🟢 Crawling Mode Enabled'
+                : '🔴 Crawling Mode Disabled'}
+            </span>
+          </div>
+          
           <div className="send-section">
             <button
               className="send-button"

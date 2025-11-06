@@ -133,7 +133,7 @@ async def follow_next_page(
 
 
 async def generate_selectors_for_url(
-    client: httpx.AsyncClient, url: str, prompt: str, validation_fail_reasoning: str
+    client: httpx.AsyncClient, url: str, prompt: str, validation_fail_reasoning: str, crawl: bool
 ) -> dict[str, Any]:
     """Fetches a URL's content and calls Gemini to generate selectors for it."""
     try:
@@ -149,6 +149,7 @@ async def generate_selectors_for_url(
             content=truncated_html,
             user_request=prompt,
             output_format=OutputFormat.XPATH,
+            crawl=crawl,
         )
 
         selector_response = gemini_service.generate_selectors(scrape_req, validation_fail_reasoning)
@@ -202,7 +203,7 @@ async def generate_selectors_and_scrape_data(
 ) -> Tuple[list[dict[str, Any]], dict[str, Any]]:
     print('Phase 1: Starting CONCURRENT selector generation.')
     reasoning = validation_fail_reasoning or ''
-    selector_tasks = [generate_selectors_for_url(client, u.url, request.prompt, reasoning) for u in request.urls]
+    selector_tasks = [generate_selectors_for_url(client, u.url, request.prompt, reasoning, request.crawl) for u in request.urls]
     selector_results = await asyncio.gather(*selector_tasks)
     url_to_selectors_map = {request.urls[i].url: selectors for i, selectors in enumerate(selector_results) if selectors}
 
@@ -220,3 +221,46 @@ async def generate_selectors_and_scrape_data(
     print(f'Phase 2 complete. Total items scraped: {len(all_scraped_data)}')
 
     return all_scraped_data, url_to_selectors_map
+
+
+async  def analyse_and_extract_for_url(
+    client: httpx.AsyncClient, url: str, prompt: str
+) -> list[dict[str, Any]]:
+    """Fetches a URL's content and calls Gemini to analyse and extract data from it."""
+    try:
+        print(f'Analysing and extracting data for: {url}')
+        response = await client.get(url, follow_redirects=True)
+        response.raise_for_status()
+
+        truncated_html = truncate_html(response.text)
+
+        gemini_service = get_gemini_service()
+        scrape_req = ScrapeRequest(
+            url=url,
+            content=truncated_html,
+            user_request=prompt,
+            output_format=OutputFormat.XPATH,
+            crawl=False,
+        )
+
+        analysis_response = gemini_service.analyse_and_extract(scrape_req)
+
+        scraped_items = analysis_response.extracted_data
+
+        print(f'Extraction complete. Items extracted: {len(scraped_items)}')
+        return scraped_items
+    except Exception as e:
+        print(f'Failed to analyse and extract for {url}: {e}')
+        return []
+
+async def analyse_and_extract(
+    client: httpx.AsyncClient, request: ProcessRequest
+) -> list[dict[str, Any]]:
+    """Fetches a URL's content and calls Gemini to analyse and extract data from it."""
+    print('Analysis only mode: Starting scraping without selector generation or crawling.')
+    analysis_tasks = [analyse_and_extract_for_url(client, u.url, request.prompt) for u in request.urls]
+    results = await asyncio.gather(*analysis_tasks)
+    all_scraped_data = [item for sublist in results for item in sublist]
+    print(f'Analysis only scraping complete. Total items scraped: {len(all_scraped_data)}')
+
+    return all_scraped_data
