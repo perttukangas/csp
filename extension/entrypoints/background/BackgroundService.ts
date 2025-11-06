@@ -546,7 +546,12 @@ export class BackgroundService {
 
       // Get the current prompt
       const currentPrompt = await this.getPropmpt();
+      const isCrawlingMode = await extensionStorage.get('crawlingMode', false);
+      const isAnalysisMode = await extensionStorage.get('analysisMode', false);
+
       console.log('📝 Current prompt:', currentPrompt);
+      console.log('🕷️ Crawling mode:', isCrawlingMode);
+      console.log('🔍 Analysis mode:', isAnalysisMode);
 
       const validatedUrls = validatedResponses.filter(r => r.type === 'url');
       const validatedHtmls = validatedResponses.filter(r => r.type === 'html');
@@ -571,7 +576,9 @@ export class BackgroundService {
           htmls: validatedHtmls.map(r => ({
             html: r.html,
           })),
-          prompt: currentPrompt || '',
+          prompt: currentPrompt,
+          crawl: isCrawlingMode,
+          analysis_only: isAnalysisMode,
         }),
       });
 
@@ -674,6 +681,23 @@ export class BackgroundService {
         browser.action?.setBadgeBackgroundColor({ color: '#FF9800' });
       }
 
+      sendResponse({ success: true });
+      return true;
+    }
+
+    if (message.type === 'CRAWLING_TOGGLED') {
+      //this is the minimum change to add some message. I dont know what else to add here
+
+      console.log(
+        `🕷️ Crawling mode ${message.enabled ? 'enabled' : 'disabled'} from popup`
+      );
+      return true;
+    }
+
+    if (message.type === 'ANALYSIS_TOGGLED') {
+      console.log(
+        `🔍 Analysis mode ${message.enabled ? 'enabled' : 'disabled'} from popup`
+      );
       sendResponse({ success: true });
       return true;
     }

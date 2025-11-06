@@ -7,6 +7,7 @@ from fastapi.responses import Response
 
 from app.models.scrape import ProcessRequest
 from app.services.scraping_service import (
+    analyse_and_extract,
     generate_selectors_for_url,
     scrape_and_crawl,
     generate_selectors_and_scrape_data,
@@ -29,7 +30,8 @@ async def process_urls(request: ProcessRequest):
     1. Concurrently generates a unique set of selectors for each initial URL.
     2. Concurrently runs scraping/crawling tasks using the specific selectors for each URL.
     """
-    print(f'Starting process_urls with {len(request.urls)} URLs, depth {request.depth}')
+    print(f'Starting process_urls with {len(request.urls)} URLs, depth {request.depth}, crawling {request.crawl}')
+    print(f'Check for analysis mode override: {request.analysis_only}')
     if request.htmls:
         print(f'Starting processing of {len(request.htmls)} HTML content with prompt: {request.prompt}')
     print(f'Request prompt: {request.prompt}')
@@ -38,14 +40,20 @@ async def process_urls(request: ProcessRequest):
         raise HTTPException(status_code=400, detail='No URLs or HTML content provided')
 
     async with httpx.AsyncClient(timeout=500.0) as client:
-        all_scraped_data, url_to_selectors_map = await generate_selectors_and_scrape_data(client, request, None)
+        if not request.analysis_only:
+            all_scraped_data, url_to_selectors_map = await generate_selectors_and_scrape_data(client, request, None)
 
-        decision, reasoning = await validate_and_refine_data(client, all_scraped_data, url_to_selectors_map, request)
-
-        if decision == 'BAD':
-            all_scraped_data, url_to_selectors_map = await generate_selectors_and_scrape_data(
-                client, request, reasoning
+            decision, reasoning = await validate_and_refine_data(
+                client, all_scraped_data, url_to_selectors_map, request
             )
+
+            if decision == 'BAD':
+                all_scraped_data, url_to_selectors_map = await generate_selectors_and_scrape_data(
+                    client, request, reasoning
+                )
+        else:
+            print('Analysis only mode: Skipping selector generation and crawling.')
+            all_scraped_data = await analyse_and_extract(client, request)
 
     print('Phase 3: Formatting data as CSV')
     if not all_scraped_data:

@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -24,6 +25,7 @@ class ScrapeRequest(BaseModel):
     input_format: InputFormat = Field(default=InputFormat.HTML, description='Format of the input content (html or dom)')
     user_request: str = Field(..., description='Natural language description of what data to extract')
     output_format: OutputFormat = Field(default=OutputFormat.XPATH, description='Desired output format for selectors')
+    crawl: bool = Field(default=False, description='Whether to enable crawling for the URLs.')
 
     class Config:
         json_schema_extra = {
@@ -52,8 +54,11 @@ class ScrapeResponse(BaseModel):
     """Response model from scraping agent"""
 
     url: str = Field(..., description='The URL that was analyzed')
-    selectors: dict[str, Selectors] = Field(..., description='Generated selectors for each requested field')
+    selectors: dict[str, Selectors] | None = Field(None, description='Generated selectors for each requested field')
     raw_output: str | None = Field(None, description='Raw output from the AI model (for debugging)')
+    extracted_data: list[dict[str, Any]] | None = Field(
+        None, description='Extracted structured data (for analysis mode)'
+    )
 
     class Config:
         json_schema_extra = {
@@ -92,4 +97,8 @@ class ProcessRequest(BaseModel):
     urls: list[ProcessUrlRequest] = Field(default_factory=list)
     htmls: list[HtmlContent] = Field(default_factory=list)
     prompt: str
-    depth: int = Field(default=1, gt=0, description='How many link levels to follow. 1 means no crawling.')
+    depth: int = Field(default=10, gt=0, description='How many link levels to follow. 1 means no crawling.')
+    crawl: bool = Field(default=False, description='Whether to enable crawling for the URLs.')
+    analysis_only: bool = Field(
+        default=False, description='If true, analyze the page and extract data directly without crawling.'
+    )
