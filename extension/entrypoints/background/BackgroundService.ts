@@ -547,8 +547,11 @@ export class BackgroundService {
       // Get the current prompt
       const currentPrompt = await this.getPropmpt();
       const isCrawlingMode = await extensionStorage.get('crawlingMode', false);
+      const isAnalysisMode = await extensionStorage.get('analysisMode', false);
 
       console.log('📝 Current prompt:', currentPrompt);
+      console.log('🕷️ Crawling mode:', isCrawlingMode);
+      console.log('🔍 Analysis mode:', isAnalysisMode);
 
       const validatedUrls = validatedResponses.filter(r => r.type === 'url');
       const validatedHtmls = validatedResponses.filter(r => r.type === 'html');
@@ -575,6 +578,7 @@ export class BackgroundService {
           })),
           prompt: currentPrompt,
           crawl: isCrawlingMode,
+          analysis_only: isAnalysisMode,
         }),
       });
 
@@ -687,6 +691,14 @@ export class BackgroundService {
       console.log(
         `🕷️ Crawling mode ${message.enabled ? 'enabled' : 'disabled'} from popup`
       );
+      return true;
+    }
+
+    if (message.type === 'ANALYSIS_TOGGLED') {
+      console.log(
+        `🔍 Analysis mode ${message.enabled ? 'enabled' : 'disabled'} from popup`
+      );
+      sendResponse({ success: true });
       return true;
     }
 

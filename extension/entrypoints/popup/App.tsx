@@ -24,6 +24,7 @@ function App() {
   const [validatedHtmlCount, setValidatedHtmlCount] = useState(0);
   const [isSending, setIsSending] = useState(false);
   const [isCrawlingMode, setIsCrawlingMode] = useState(false);
+  const [isAnalysisMode, setIsAnalysisMode] = useState(false);
 
   // Load pending validations count
   const loadPendingValidations = async () => {
@@ -85,6 +86,9 @@ function App() {
         const crawlingMode = await extensionStorage.get('crawlingMode', false);
         setIsCrawlingMode(crawlingMode);
 
+        const analysisMode = await extensionStorage.get('analysisMode', false);
+        setIsAnalysisMode(analysisMode);
+
         // Load pending validations
         await loadPendingValidations();
       } catch (error) {
@@ -119,6 +123,16 @@ function App() {
       setIsCrawlingMode(enabled);
       await extensionStorage.set('crawlingMode', enabled);
 
+      // If crawling mode is enabled, disable analysis mode
+      if (enabled && isAnalysisMode) {
+        setIsAnalysisMode(false);
+        await extensionStorage.set('analysisMode', false);
+        await browser.runtime.sendMessage({
+          type: 'ANALYSIS_TOGGLED',
+          enabled: false,
+        });
+      }
+
       await browser.runtime.sendMessage({
         type: 'CRAWLING_TOGGLED',
         enabled: enabled,
@@ -127,6 +141,32 @@ function App() {
       console.log(`Crawling mode ${enabled ? 'enabled' : 'disabled'}`);
     } catch (error) {
       console.error('Failed to update crawling mode:', error);
+    }
+  };
+
+  const handleToggleAnalysis = async (enabled: boolean) => {
+    try {
+      setIsAnalysisMode(enabled);
+      await extensionStorage.set('analysisMode', enabled);
+
+      // If analysis mode is enabled, disable crawling mode
+      if (enabled && isCrawlingMode) {
+        setIsCrawlingMode(false);
+        await extensionStorage.set('crawlingMode', false);
+        await browser.runtime.sendMessage({
+          type: 'CRAWLING_TOGGLED',
+          enabled: false,
+        });
+      }
+
+      await browser.runtime.sendMessage({
+        type: 'ANALYSIS_TOGGLED',
+        enabled: enabled,
+      });
+
+      console.log(`Analysis mode ${enabled ? 'enabled' : 'disabled'}`);
+    } catch (error) {
+      console.error('Failed to update analysis mode:', error);
     }
   };
 
@@ -267,6 +307,25 @@ function App() {
             </span>
           </div>
 
+          <div
+            className="checkbox-container"
+            onClick={() => handleToggleAnalysis(!isAnalysisMode)}
+          >
+            <input
+              type="checkbox"
+              checked={isAnalysisMode}
+              onChange={e => handleToggleAnalysis(e.target.checked)}
+              onClick={e => e.stopPropagation()}
+            />
+            <span
+              className={`status-text ${isAnalysisMode ? 'enabled' : 'disabled'}`}
+            >
+              {isAnalysisMode
+                ? '🟢 Analysis Mode Enabled'
+                : '🔴 Analysis Mode Disabled'}
+            </span>
+          </div>
+
           <div className="send-section">
             <button
               className="send-button"
@@ -300,7 +359,7 @@ function App() {
       {activeTab === Tab.STORAGE && (
         <StorageView
           isVisible={activeTab === Tab.STORAGE}
-          onStorageUpdate={() => {}}
+          onStorageUpdate={() => { }}
         />
       )}
     </>
