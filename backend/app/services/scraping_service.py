@@ -256,7 +256,8 @@ async def generate_selectors_and_scrape_data(
         f'html_content_{i}': selectors for i, selectors in enumerate(html_selector_results) if selectors
     }
     if not url_to_selectors_map and not html_to_selectors_map:
-        raise HTTPException(status_code=500, detail='Failed to generate selectors for any URL.')
+        print('No selectors were generated for any URL or HTML content. Returning empty results.')
+        return [], {}
 
     print(
         f'Phase 2: Starting scraping for {len(url_to_selectors_map)} URLs and {len(html_to_selectors_map)} HTML contents'
