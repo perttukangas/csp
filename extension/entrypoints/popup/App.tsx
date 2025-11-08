@@ -197,9 +197,23 @@ function App() {
       console.log('📨 Received response from background script:', result);
 
       if (result.success) {
-        alert(
-          `Successfully sent ${result.sent} validated responses to server!`
-        );
+        // Download the CSV file if we received CSV data
+        if (result.csvData) {
+          console.log('📥 Downloading CSV file...');
+          const blob = new Blob([result.csvData], {
+            type: 'text/csv;charset=utf-8;',
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'scraping_results.csv';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          console.log('✅ CSV file downloaded successfully');
+        }
+
         // Refresh the counts after sending
         await loadPendingValidations();
       } else {

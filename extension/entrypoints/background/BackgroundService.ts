@@ -524,6 +524,7 @@ export class BackgroundService {
     success: boolean;
     error?: string;
     sent?: number;
+    csvData?: string;
   }> {
     console.log('🚀 Starting sendValidatedResponsesToServer()');
     try {
@@ -590,12 +591,12 @@ export class BackgroundService {
       );
 
       if (response.ok) {
-        const responseText = await response.text();
-        console.log(
-          '✅ Validated responses sent to server successfully. Response:',
-          responseText
-        );
-        return { success: true, sent: validatedResponses.length };
+        // Get the CSV content as text
+        const csvData = await response.text();
+        console.log('📥 CSV data received, length:', csvData.length);
+
+        console.log('✅ CSV data ready for download');
+        return { success: true, sent: validatedResponses.length, csvData };
       } else {
         console.error('❌ Server returned error:', response.status);
         return { success: false, error: `Server error: ${response.status}` };
