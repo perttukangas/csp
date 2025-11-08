@@ -23,6 +23,20 @@ async def health_check():
     return 'ok'
 
 
+@router.get('/get-spa-html')
+async def get_spa_html(url: str):
+    """Fetch and render a URL with JavaScript execution using Playwright."""
+    from app.services.html_renderer import fetch_rendered_html
+
+    print(f'Fetching SPA HTML for URL: {url}')
+
+    try:
+        rendered_html = await fetch_rendered_html(url)
+        return Response(content=rendered_html, media_type='text/html')
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error fetching/rendering URL: {str(e)}')
+
+
 @router.post('/process')
 async def process_urls(request: ProcessRequest):
     """

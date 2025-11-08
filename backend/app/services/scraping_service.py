@@ -12,6 +12,7 @@ import asyncio
 from app.models.scrape import ProcessRequest
 from app.models.scrape import OutputFormat, ScrapeRequest
 from app.services.gemini_agent import get_gemini_service
+from app.services.html_renderer import fetch_rendered_html
 
 
 async def scrape_and_crawl_html(
@@ -57,12 +58,27 @@ async def scrape_and_crawl(
     return result
 
 
-async def fetch_html(client: httpx.AsyncClient, url: str) -> str | None:
-    """Fetches HTML content for a given URL."""
+async def fetch_html(client: httpx.AsyncClient, url: str, use_playwright: bool = False) -> str | None:
+    """
+    Fetches HTML content for a given URL.
+    
+    Args:
+        client: The httpx client (used when use_playwright=False)
+        url: The URL to fetch
+        use_playwright: If True, uses Playwright to render JavaScript-heavy pages
+    
+    Returns:
+        The HTML content or None if fetching fails
+    """
     try:
-        response = await client.get(url, follow_redirects=True)
-        response.raise_for_status()
-        return response.text
+        if use_playwright:
+            print(f'Fetching {url} with Playwright (JavaScript rendering enabled)')
+            html_content = await fetch_rendered_html(url)
+            return html_content
+        else:
+            response = await client.get(url, follow_redirects=True)
+            response.raise_for_status()
+            return response.text
     except Exception as e:
         print(f'Failed to fetch {url}: {e}')
         return None
