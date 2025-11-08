@@ -71,13 +71,18 @@ async def process_urls(request: ProcessRequest):
 
     print('Phase 3: Formatting data as CSV')
     if not all_scraped_data:
-        return 'No data could be scraped from the provided URLs.'
+        print('No data was scraped.')
+        return Response(
+            content='No data scraped. Please refine prompt\n',
+            media_type='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=scraping_results.csv'},
+        )
 
     df = pd.DataFrame(all_scraped_data)
     csv_content = df.to_csv(index=False)
 
     print(f'Generated CSV with {len(df.index)} rows and {len(df.columns)} columns')
-    print('-- CSV Conetent Start --')
+    print('-- CSV Content Start --')
     print(csv_content)
     print('-- CSV Content End --')
 
