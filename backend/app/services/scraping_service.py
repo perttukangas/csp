@@ -61,12 +61,12 @@ async def scrape_and_crawl(
 async def fetch_html(client: httpx.AsyncClient, url: str, use_playwright: bool = True) -> str | None:
     """
     Fetches HTML content for a given URL.
-    
+
     Args:
         client: The httpx client (used when use_playwright=False)
         url: The URL to fetch
         use_playwright: If True, uses Playwright to render JavaScript-heavy pages
-    
+
     Returns:
         The HTML content or None if fetching fails
     """
@@ -207,6 +207,9 @@ async def generate_selectors_for_url(
     try:
         print(f'Generating selectors for: {url}')
         html = await fetch_html(client, url, use_playwright=True)
+        if not html:
+            print(f'Failed to fetch HTML for {url}')
+            return {}
         print(f'Fetched {len(html) if html else 0} characters from {url} for selector generation.')
         result = await generate_selectors_html(html, url, prompt, validation_fail_reasoning, crawl)
 
