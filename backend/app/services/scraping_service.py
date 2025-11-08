@@ -50,7 +50,7 @@ async def scrape_and_crawl(
     print(f'Scraping URL: {url} at depth {depth}')
     visited.add(url)
 
-    html_content = await fetch_html(client, url)
+    html_content = await fetch_html(url)
     if not html_content:
         return []
 
@@ -58,7 +58,7 @@ async def scrape_and_crawl(
     return result
 
 
-async def fetch_html(client: httpx.AsyncClient, url: str, use_playwright: bool = True) -> str | None:
+async def fetch_html(url: str) -> str | None:
     """
     Fetches HTML content for a given URL.
 
@@ -71,14 +71,9 @@ async def fetch_html(client: httpx.AsyncClient, url: str, use_playwright: bool =
         The HTML content or None if fetching fails
     """
     try:
-        if use_playwright:
-            print(f'Fetching {url} with Playwright (JavaScript rendering enabled)')
-            html_content = await fetch_rendered_html(url)
-            return html_content
-        else:
-            response = await client.get(url, follow_redirects=True)
-            response.raise_for_status()
-            return response.text
+        print(f'Fetching {url} with Playwright (JavaScript rendering enabled)')
+        html_content = await fetch_rendered_html(url)
+        return html_content
     except Exception as e:
         print(f'Failed to fetch {url}: {e}')
         return None
@@ -201,12 +196,12 @@ async def generate_selectors_html(
 
 
 async def generate_selectors_for_url(
-    client: httpx.AsyncClient, url: str, prompt: str, validation_fail_reasoning: str, crawl: bool
+    url: str, prompt: str, validation_fail_reasoning: str, crawl: bool
 ) -> dict[str, Any]:
     """Fetches a URL's content and calls Gemini to generate selectors for it."""
     try:
         print(f'Generating selectors for: {url}')
-        html = await fetch_html(client, url, use_playwright=True)
+        html = await fetch_html(url)
         if not html:
             print(f'Failed to fetch HTML for {url}')
             return {}
@@ -256,9 +251,7 @@ async def generate_selectors_and_scrape_data(
 ) -> Tuple[list[dict[str, Any]], dict[str, Any]]:
     print('Phase 1: Starting CONCURRENT selector generation.')
     reasoning = validation_fail_reasoning or ''
-    selector_tasks = [
-        generate_selectors_for_url(client, u.url, request.prompt, reasoning, request.crawl) for u in request.urls
-    ]
+    selector_tasks = [generate_selectors_for_url(u.url, request.prompt, reasoning, request.crawl) for u in request.urls]
     selector_tasks_html = [
         generate_selectors_html(h.html, f'html_content_{i}', request.prompt, reasoning, request.crawl)
         for i, h in enumerate(request.htmls)
