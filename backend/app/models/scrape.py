@@ -91,6 +91,22 @@ class HtmlContent(BaseModel):
     html: str
 
 
+class VerifyRequest(BaseModel):
+    """Request model for the verification endpoint."""
+
+    urls: list[ProcessUrlRequest] = Field(default_factory=list)
+    htmls: list[HtmlContent] = Field(default_factory=list)
+    prompt: str
+    depth: int = Field(default=1, gt=0, description='How many link levels to follow. 1 means no crawling.')
+    crawl: bool = Field(default=False, description='Whether to enable crawling for the URLs.')
+    analysis_only: bool = Field(
+        default=False, description='If true, analyze the page and extract data directly without crawling.'
+    )
+    use_validation_agent: bool | None = Field(
+        default=False, description='Use a second agent to analyze and refine results.'
+    )
+
+
 class ProcessRequest(BaseModel):
     """Request model for the main processing endpoint."""
 
