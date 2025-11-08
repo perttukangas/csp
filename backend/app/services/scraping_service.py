@@ -58,7 +58,7 @@ async def scrape_and_crawl(
     return result
 
 
-async def fetch_html(client: httpx.AsyncClient, url: str, use_playwright: bool = False) -> str | None:
+async def fetch_html(client: httpx.AsyncClient, url: str, use_playwright: bool = True) -> str | None:
     """
     Fetches HTML content for a given URL.
     
@@ -206,10 +206,9 @@ async def generate_selectors_for_url(
     """Fetches a URL's content and calls Gemini to generate selectors for it."""
     try:
         print(f'Generating selectors for: {url}')
-        response = await client.get(url, follow_redirects=True)
-        response.raise_for_status()
-
-        result = await generate_selectors_html(response.text, url, prompt, validation_fail_reasoning, crawl)
+        html = await fetch_html(client, url, use_playwright=True)
+        print(f'Fetched {len(html) if html else 0} characters from {url} for selector generation.')
+        result = await generate_selectors_html(html, url, prompt, validation_fail_reasoning, crawl)
 
         return result
     except Exception as e:
