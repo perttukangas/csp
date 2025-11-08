@@ -17,3 +17,6 @@ test-html:
 		-d @"$$temp_file"; \
 	rm "$$temp_file"
 
+test-spa:
+	curl -X GET "http://localhost:8000/api/get-spa-html?url=https://www.reddit.com/r/languagelearning/comments/1oredtn/how_to_stick_to_one_language_with_audhd/" -o rendered.html && echo "\nHTML saved to rendered.html"
+

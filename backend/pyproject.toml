@@ -11,6 +11,7 @@ dependencies = [
     "pandas>=2.3.3",
     "google-genai>=1.45.0",
     "lxml-html-clean>=0.4.3",
+    "playwright>=1.48.0",
 ]
 
 [dependency-groups]
