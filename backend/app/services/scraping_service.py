@@ -299,7 +299,7 @@ async def analyse_and_extract_for_url(client: httpx.AsyncClient, url: str, promp
     """Fetches a URL's content and calls Gemini to analyse and extract data from it."""
     try:
         print(f'Analysing and extracting data for: {url}')
-        
+
         # Use Playwright to render JavaScript-heavy pages (same as normal mode)
         html_content = await fetch_html(url)
         if not html_content:
@@ -336,7 +336,7 @@ async def analyse_and_extract_from_html(html_content: str, url_identifier: str, 
     """Analyses and extracts data from pre-captured HTML content."""
     try:
         print(f'Analysing and extracting data from HTML: {url_identifier}')
-        
+
         truncated_html = truncate_html(html_content)
 
         gemini_service = get_gemini_service()
@@ -366,21 +366,22 @@ async def analyse_and_extract_from_html(html_content: str, url_identifier: str, 
 async def analyse_and_extract(client: httpx.AsyncClient, request: ProcessRequest) -> list[dict[str, Any]]:
     """Fetches URLs and processes HTML content, calling Gemini to analyse and extract data."""
     print('Analysis only mode: Starting scraping without selector generation or crawling.')
-    
+
     # Process URLs
     url_tasks = [analyse_and_extract_for_url(client, u.url, request.prompt) for u in request.urls]
-    
+
     # Process pre-captured HTML content (from authenticated pages)
     html_tasks = [
-        analyse_and_extract_from_html(h.html, f'html_content_{i}', request.prompt)
-        for i, h in enumerate(request.htmls)
+        analyse_and_extract_from_html(h.html, f'html_content_{i}', request.prompt) for i, h in enumerate(request.htmls)
     ]
-    
+
     # Run all tasks in parallel
     all_tasks = url_tasks + html_tasks
     results = await asyncio.gather(*all_tasks)
-    
+
     all_scraped_data = [item for sublist in results for item in sublist]
-    print(f'Analysis only scraping complete. Total items scraped: {len(all_scraped_data)} (from {len(request.urls)} URLs + {len(request.htmls)} HTML contents)')
+    print(
+        f'Analysis only scraping complete. Total items scraped: {len(all_scraped_data)} (from {len(request.urls)} URLs + {len(request.htmls)} HTML contents)'
+    )
 
     return all_scraped_data

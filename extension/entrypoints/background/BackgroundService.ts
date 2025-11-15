@@ -624,7 +624,7 @@ export class BackgroundService {
       const validatedResponses = responses
         .filter(r => r.validationStatus === 'validated')
         .slice(0, 3);
-        
+
       console.log('✅ Validated responses found:', validatedResponses.length);
 
       if (validatedResponses.length === 0) {

@@ -19,7 +19,9 @@ function App() {
   const [prompt, setPrompt] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>(Tab.CONTROLS);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [verificationResult, setVerificationResult] = useState<string | null>(null);
+  const [verificationResult, setVerificationResult] = useState<string | null>(
+    null
+  );
   const [showVerification, setShowVerification] = useState(false);
   const [pendingValidations, setPendingValidations] = useState(0);
   const [pendingValidationsHtml, setPendingValidationsHtml] = useState(0);
