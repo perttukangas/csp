@@ -18,6 +18,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [prompt, setPrompt] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>(Tab.CONTROLS);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<string | null>(null);
+  const [showVerification, setShowVerification] = useState(false);
   const [pendingValidations, setPendingValidations] = useState(0);
   const [pendingValidationsHtml, setPendingValidationsHtml] = useState(0);
   const [validatedCount, setValidatedCount] = useState(0);
@@ -227,6 +230,55 @@ function App() {
     }
   };
 
+  const handleVerifySample = async () => {
+    if (validatedCount === 0) {
+      alert('No validated responses to verify!');
+      return;
+    }
+
+    console.log('🔍 Sending VERIFY_SAMPLE message to background script');
+    setIsVerifying(true);
+    setVerificationResult(null);
+    try {
+      const result = await browser.runtime.sendMessage({
+        type: 'VERIFY_SAMPLE',
+      });
+
+      console.log('📨 Received verification response:', result);
+
+      if (result.success) {
+        setVerificationResult(result.csvData);
+        setShowVerification(true);
+        // If the background returned CSV content as text, trigger download in the popup (DOM available here)
+        if (result.csvData) {
+          console.log('📥 Downloading CSV file...');
+          const blob = new Blob([result.csvData], {
+            type: 'text/csv;charset=utf-8;',
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'scraping_results.csv';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          console.log('✅ CSV file downloaded successfully');
+        }
+
+        // Refresh the counts after sending
+        await loadPendingValidations();
+      } else {
+        alert(`Failed to verify sample: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to verify sample:', error);
+      alert('Failed to verify sample. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="loading-state">Loading...</div>;
   }
@@ -342,6 +394,14 @@ function App() {
 
           <div className="send-section">
             <button
+              className="verify-button"
+              onClick={handleVerifySample}
+              disabled={isVerifying || validatedCount === 0}
+            >
+              {isVerifying ? '⟳ Verifying...' : `🔍 Verify Sample (3 URLs)`}
+            </button>
+
+            <button
               className="send-button"
               onClick={handleSendValidated}
               disabled={
@@ -353,6 +413,28 @@ function App() {
                 : `📤 Send ${validatedCount + validatedHtmlCount} URLs to processing`}
             </button>
           </div>
+          {/* Verification Results Actions */}
+          {showVerification && (
+            <div className="verification-preview">
+              <h3>✅ Verification CSV Downloaded</h3>
+              <p>Check the downloaded file to verify the results.</p>
+              <div className="verification-actions">
+                <button
+                  className="adjust-button"
+                  onClick={() => setShowVerification(false)}
+                >
+                  ✏️ Adjust Prompt
+                </button>
+                <button
+                  className="proceed-button"
+                  onClick={handleSendValidated}
+                  disabled={isSending}
+                >
+                  ✅ Looks Good - Process All
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

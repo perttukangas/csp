@@ -610,6 +610,97 @@ export class BackgroundService {
     }
   }
 
+  async verifySampleResponses(): Promise<{
+    success: boolean;
+    error?: string;
+    sent?: number;
+    csvData?: string;
+  }> {
+    console.log('🚀 Starting sendValidatedResponsesToServer()');
+    try {
+      const responses = await this.getStoredResponses();
+      console.log('📦 Total stored responses:', responses.length);
+
+      const validatedResponses = responses
+        .filter(r => r.validationStatus === 'validated')
+        .slice(0, 3);
+        
+      console.log('✅ Validated responses found:', validatedResponses.length);
+
+      if (validatedResponses.length === 0) {
+        console.log('⚠️ No validated responses to send');
+        return { success: false, error: 'No validated responses to send' };
+      }
+
+      console.log(
+        `📤 Sending ${validatedResponses.length} validated responses to server`
+      );
+
+      // Get the current prompt
+      const currentPrompt = await this.getPropmpt();
+      const isCrawlingMode = await extensionStorage.get('crawlingMode', false);
+      const isAnalysisMode = await extensionStorage.get('analysisMode', false);
+
+      console.log('📝 Current prompt:', currentPrompt);
+      console.log('🕷️ Crawling mode:', isCrawlingMode);
+      console.log('🔍 Analysis mode:', isAnalysisMode);
+
+      const validatedUrls = validatedResponses.filter(r => r.type === 'url');
+      const validatedHtmls = validatedResponses.filter(r => r.type === 'html');
+
+      console.log(
+        `🌐 Preparing to send ${validatedUrls.length} URLs and ${validatedHtmls.length} HTML contents to server`
+      );
+
+      // Send all validated responses to the server
+      const backendUrl =
+        import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+      console.log(`🌐 Making HTTP request to ${backendUrl}/api/process`);
+      const response = await fetch(`${backendUrl}/api/process`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          urls: validatedUrls.map(r => ({
+            url: r.url,
+          })),
+          htmls: validatedHtmls.map(r => ({
+            html: r.html,
+          })),
+          prompt: currentPrompt,
+          crawl: isCrawlingMode,
+          analysis_only: isAnalysisMode,
+        }),
+      });
+
+      console.log(
+        '📡 HTTP response received. Status:',
+        response.status,
+        'OK:',
+        response.ok
+      );
+
+      if (response.ok) {
+        // Get the CSV content as text
+        const csvData = await response.text();
+        console.log('📥 CSV data received, length:', csvData.length);
+
+        console.log('✅ CSV data ready for download');
+        return { success: true, sent: validatedResponses.length, csvData };
+      } else {
+        console.error('❌ Server returned error:', response.status);
+        return { success: false, error: `Server error: ${response.status}` };
+      }
+    } catch (error) {
+      console.error('💥 Failed to send validated responses to server:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
   handleMessage(
     message: any,
     sender: globalThis.Browser.runtime.MessageSender,
@@ -734,6 +825,23 @@ export class BackgroundService {
         })
         .catch(error => {
           console.error('💥 Error sending validated responses:', error);
+          sendResponse({ success: false, error: error.message });
+        });
+
+      return true;
+    }
+
+    if (message.type === 'VERIFY_SAMPLE') {
+      console.log('📨 Received request to verify sample responses');
+      console.log('🔍 About to call verifySampleResponses()');
+
+      this.verifySampleResponses()
+        .then(result => {
+          console.log('📤 Verify sample responses result:', result);
+          sendResponse(result);
+        })
+        .catch(error => {
+          console.error('💥 Error verifying sample responses:', error);
           sendResponse({ success: false, error: error.message });
         });
 
