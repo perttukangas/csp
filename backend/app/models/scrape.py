@@ -44,17 +44,38 @@ class ScrapeRequest(BaseModel):
         }
 
 
-class Selectors(BaseModel):
-    """Selectors for a specific field"""
+# ... (after your existing models)
 
+class FieldSelectors(BaseModel):
+    """Pydantic model for a single field's selectors, matching the prompt."""
     xpath: str | None = Field(None, description='XPath selector for the field')
 
+
+class ModelResponse(BaseModel):
+    """
+    The structured JSON response we expect from the model.
+    This is what the model will pass to the 'submit_final_selectors' tool.
+    """
+    selectors: dict[str, FieldSelectors] = Field(
+        ...,
+        description="A dictionary mapping snake_case field names to their selectors."
+    )
+    
+    class Config:
+        json_schema_extra = {
+            'example': {
+                'selectors': {
+                    'product_name': {'xpath': '//h1[@class="product-title"]/text()'},
+                    'price': {'xpath': '//span[@class="price"]/text()'},
+                }
+            }
+        }
 
 class ScrapeResponse(BaseModel):
     """Response model from scraping agent"""
 
     url: str = Field(..., description='The URL that was analyzed')
-    selectors: dict[str, Selectors] | None = Field(None, description='Generated selectors for each requested field')
+    selectors: dict[str, FieldSelectors] | None = Field(None, description='Generated selectors for each requested field')
     raw_output: str | None = Field(None, description='Raw output from the AI model (for debugging)')
     extracted_data: list[dict[str, Any]] | None = Field(
         None, description='Extracted structured data (for analysis mode)'
