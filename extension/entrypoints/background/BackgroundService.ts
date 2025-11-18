@@ -477,15 +477,25 @@ export class BackgroundService {
       return { success: false, error: 'URL tracking is disabled' };
     }
 
-    const urlRequiresAuth =
-      !html && (await this.checkIfUrlRequiresAuthentication(url));
-    if (urlRequiresAuth) {
-      console.log('🚫 URL requires authentication, skipping:', url);
-      return {
-        success: false,
-        requiresAuth: true,
-        error: 'URL requires authentication',
-      };
+    // Check if force HTML storage is enabled
+    const forceHtmlStorage = await extensionStorage.get('forceHtmlStorage', false);
+    console.log('🔍 Force HTML storage enabled:', forceHtmlStorage);
+
+    // If HTML is not provided but we should capture it
+    if (!html) {
+      const urlRequiresAuth = await this.checkIfUrlRequiresAuthentication(url);
+
+      // If force HTML storage is enabled OR URL requires auth, request HTML capture
+      if (forceHtmlStorage || urlRequiresAuth) {
+        console.log('� Requesting HTML capture for:', url,
+          forceHtmlStorage ? '(forced)' : '(requires auth)');
+        return {
+          success: false,
+          requiresAuth: true,
+          forceHtmlCapture: forceHtmlStorage,
+          error: forceHtmlStorage ? 'Force HTML capture enabled' : 'URL requires authentication',
+        };
+      }
     }
 
     console.log('📦 Storing URL for later batch sending:', url);

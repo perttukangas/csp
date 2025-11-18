@@ -10,6 +10,43 @@ export default defineContentScript({
   main() {
     console.log('Content script loaded on:', window.location.href);
 
+    const captureAndSendHTML = async (url: string) => {
+      console.log('🔒 Capturing rendered HTML for:', url);
+
+      // Strategy 1: Detect and wait for SPA frameworks
+      await waitForSPAFrameworks();
+
+      // Strategy 2: Wait for key content elements to appear
+      await waitForKeyElements();
+
+      // Strategy 3: Wait for content to stabilize
+      await waitForContentToLoad();
+
+      // Strategy 4: Get the fully rendered HTML
+      const html = getRenderedHTML();
+      console.log('📄 Captured rendered HTML length:', html.length);
+
+      // Optional: Extract meaningful text content for analysis
+      const textContent = document.body.innerText || '';
+      const wordCount = textContent
+        .split(/\s+/)
+        .filter(word => word.length > 0).length;
+      console.log('📄 Text content word count:', wordCount);
+
+      const response = await browser.runtime.sendMessage({
+        type: 'STORE_HTML_URL',
+        url: url,
+        html: html,
+      });
+
+      console.log(
+        'Received response from background script for HTML storage:',
+        response
+      );
+
+      return response;
+    };
+
     const handleUrlChange = async (url: string) => {
       console.log('URL changed to:', url);
 
@@ -32,41 +69,8 @@ export default defineContentScript({
           console.log(
             '✅ URL sent to server successfully via background script'
           );
-        } else if (response.requiresAuth) {
-          console.log(
-            '🔒 Page requires authentication, capturing rendered content...'
-          );
-
-          // Strategy 1: Detect and wait for SPA frameworks
-          await waitForSPAFrameworks();
-
-          // Strategy 2: Wait for key content elements to appear
-          await waitForKeyElements();
-
-          // Strategy 3: Wait for content to stabilize
-          await waitForContentToLoad();
-
-          // Strategy 4: Get the fully rendered HTML
-          const html = getRenderedHTML();
-          console.log('📄 Captured rendered HTML length:', html);
-
-          // Optional: Extract meaningful text content for analysis
-          const textContent = document.body.innerText || '';
-          const wordCount = textContent
-            .split(/\s+/)
-            .filter(word => word.length > 0).length;
-          console.log('📄 Text content word count:', wordCount);
-
-          const response = await browser.runtime.sendMessage({
-            type: 'STORE_HTML_URL',
-            url: url,
-            html: html,
-          });
-
-          console.log(
-            'Received response from background script for HTML storage:',
-            response
-          );
+        } else if (response.requiresAuth || response.forceHtmlCapture) {
+          await captureAndSendHTML(url);
         } else {
           console.log(
             '❌ Failed to send URL via background script:',
@@ -77,6 +81,22 @@ export default defineContentScript({
         console.error('💥 Failed to send message to background script:', error);
       }
     };
+
+    // Listen for messages from background script
+    browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.type === 'CAPTURE_HTML') {
+        console.log('📨 Received CAPTURE_HTML message from background:', message.url);
+        captureAndSendHTML(message.url)
+          .then(response => {
+            sendResponse(response);
+          })
+          .catch(error => {
+            console.error('Failed to capture HTML:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true; // Keep the message channel open for async response
+      }
+    });
 
     // Initial URL
     handleUrlChange(window.location.href);
