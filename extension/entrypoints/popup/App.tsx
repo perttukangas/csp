@@ -84,12 +84,14 @@ function App() {
         const crawlingMode = await extensionStorage.get('crawlingMode', false);
         const analysisMode = await extensionStorage.get('analysisMode', false);
         const htmlStorage = await extensionStorage.get('forceHtmlStorage', false);
+        const savedStep = await extensionStorage.get('currentStep', Step.START_SCRAPING);
 
         setPrompt(storedPrompt || '');
         setIsScrapingSession(trackingEnabled || false);
         setIsCrawlingMode(crawlingMode);
         setIsAnalysisMode(analysisMode);
         setForceHtmlStorage(htmlStorage);
+        setCurrentStep(savedStep);
 
         await loadResponsesCount();
         await loadStorageUsage();
@@ -143,6 +145,7 @@ function App() {
 
       if (totalResponses > 0) {
         setCurrentStep(Step.VALIDATE_CONTENT);
+        await extensionStorage.set('currentStep', Step.VALIDATE_CONTENT);
       }
 
       console.log('Scraping session ended');
@@ -275,6 +278,7 @@ function App() {
 
         await loadResponsesCount();
         setCurrentStep(Step.START_SCRAPING);
+        await extensionStorage.set('currentStep', Step.START_SCRAPING);
         setShowVerification(false);
       } else {
         alert('Failed to send responses: ' + (result.error || 'Unknown error'));
@@ -287,15 +291,19 @@ function App() {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < Step.VERIFY_AND_SEND) {
-      setCurrentStep((currentStep + 1) as Step);
+      const nextStep = (currentStep + 1) as Step;
+      setCurrentStep(nextStep);
+      await extensionStorage.set('currentStep', nextStep);
     }
   };
 
-  const handlePrevious = () => {
+  const handlePrevious = async () => {
     if (currentStep > Step.START_SCRAPING) {
-      setCurrentStep((currentStep - 1) as Step);
+      const prevStep = (currentStep - 1) as Step;
+      setCurrentStep(prevStep);
+      await extensionStorage.set('currentStep', prevStep);
     }
   };
 
