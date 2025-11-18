@@ -6,8 +6,7 @@
 
 #root {
   width: 400px;
-  min-height: 300px;
-  max-height: 600px;
+  height: 600px;
   margin: 0;
   padding: 0;
   text-align: left;
@@ -17,8 +16,9 @@
   background: #0d1117;
   color: #e6edf3;
   border-radius: 8px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Header */
@@ -32,6 +32,7 @@ h1 {
   border-bottom: 1px solid #30363d;
   text-align: center;
   letter-spacing: -0.5px;
+  flex-shrink: 0;
 }
 
 h3 {
@@ -49,7 +50,10 @@ h3 {
 
 .step-content {
   padding: 20px;
-  min-height: 250px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
 }
 
 .step-content h2 {
@@ -227,6 +231,7 @@ button {
   padding: 16px 20px;
   background: #161b22;
   border-bottom: 1px solid #30363d;
+  flex-shrink: 0;
 }
 
 .step-progress {
@@ -358,9 +363,6 @@ button {
 }
 
 .responses-container {
-  max-height: 400px;
-  overflow-y: auto;
-  overflow-x: hidden;
   padding-right: 4px;
   width: 100%;
 }
@@ -541,8 +543,10 @@ button {
 }
 
 .loading-state {
-  text-align: center;
-  padding: 40px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
   color: #7d8590;
   font-size: 14px;
 }
@@ -1226,6 +1230,7 @@ button {
   padding: 16px 20px;
   border-top: 1px solid #30363d;
   background: #161b22;
+  flex-shrink: 0;
 }
 
 .navigation-buttons:has(button:only-child) {
