@@ -116,11 +116,19 @@ function App() {
     return () => clearInterval(interval);
   }, [isScrapingSession]);
 
+  const handleForceHtmlStorageChange = async (enabled: boolean) => {
+    try {
+      setForceHtmlStorage(enabled);
+      await extensionStorage.set('forceHtmlStorage', enabled);
+    } catch (error) {
+      console.error('Failed to update force HTML storage:', error);
+    }
+  };
+
   const handleStartScraping = async () => {
     try {
       setIsScrapingSession(true);
       await extensionStorage.set('urlTrackingEnabled', true);
-      await extensionStorage.set('forceHtmlStorage', forceHtmlStorage);
 
       await browser.runtime.sendMessage({
         type: 'TRACKING_TOGGLED',
@@ -223,20 +231,8 @@ function App() {
 
       if (result.success) {
         setShowVerification(true);
-        if (result.csvData) {
-          const blob = new Blob([result.csvData], {
-            type: 'text/csv;charset=utf-8;',
-          });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'scraping_results_sample.csv';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }
 
+        // Download is handled by background service
         await loadResponsesCount();
       } else {
         alert('Failed to verify sample: ' + (result.error || 'Unknown error'));
@@ -262,20 +258,7 @@ function App() {
       });
 
       if (result.success) {
-        if (result.csvData) {
-          const blob = new Blob([result.csvData], {
-            type: 'text/csv;charset=utf-8;',
-          });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'scraping_results_all.csv';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }
-
+        // Download is handled by background service
         await loadResponsesCount();
         setCurrentStep(Step.START_SCRAPING);
         await extensionStorage.set('currentStep', Step.START_SCRAPING);
@@ -355,7 +338,7 @@ function App() {
             <input
               type="checkbox"
               checked={forceHtmlStorage}
-              onChange={e => setForceHtmlStorage(e.target.checked)}
+              onChange={e => handleForceHtmlStorageChange(e.target.checked)}
               disabled={isScrapingSession}
             />
             <div>
