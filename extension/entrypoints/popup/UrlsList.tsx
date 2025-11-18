@@ -31,8 +31,8 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
       console.log('Load responses result:', result);
 
       if (result.success) {
-        // Show all responses (both URLs and HTMLs) in the unified view
-        setResponses(result.responses || []);
+        // Show all responses (both URLs and HTMLs) in the unified view, newest first
+        setResponses((result.responses || []).reverse());
       } else {
         console.error('Failed to load responses:', result.error);
       }
