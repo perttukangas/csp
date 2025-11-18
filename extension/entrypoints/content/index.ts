@@ -85,7 +85,10 @@ export default defineContentScript({
     // Listen for messages from background script
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'CAPTURE_HTML') {
-        console.log('📨 Received CAPTURE_HTML message from background:', message.url);
+        console.log(
+          '📨 Received CAPTURE_HTML message from background:',
+          message.url
+        );
         captureAndSendHTML(message.url)
           .then(response => {
             sendResponse(response);

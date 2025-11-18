@@ -24,11 +24,18 @@ export default defineBackground({
       // Only process when URL actually changes and is complete
       if (changeInfo.status === 'complete' && tab.url) {
         console.log('Tab URL changed:', tab.url);
-        const result = await backgroundService.storeUrlForLater(tab.url, undefined, tabId);
+        const result = await backgroundService.storeUrlForLater(
+          tab.url,
+          undefined,
+          tabId
+        );
 
         // If HTML capture is needed, notify the content script
         if (result.requiresAuth || result.forceHtmlCapture) {
-          console.log('📨 Notifying content script to capture HTML for:', tab.url);
+          console.log(
+            '📨 Notifying content script to capture HTML for:',
+            tab.url
+          );
           try {
             await browser.tabs.sendMessage(tabId, {
               type: 'CAPTURE_HTML',
@@ -55,14 +62,20 @@ export default defineBackground({
 
           // If HTML capture is needed, notify the content script
           if (result.requiresAuth || result.forceHtmlCapture) {
-            console.log('📨 Notifying content script to capture HTML for:', tab.url);
+            console.log(
+              '📨 Notifying content script to capture HTML for:',
+              tab.url
+            );
             try {
               await browser.tabs.sendMessage(activeInfo.tabId, {
                 type: 'CAPTURE_HTML',
                 url: tab.url,
               });
             } catch (error) {
-              console.error('Failed to send CAPTURE_HTML message to tab:', error);
+              console.error(
+                'Failed to send CAPTURE_HTML message to tab:',
+                error
+              );
             }
           }
         }

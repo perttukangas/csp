@@ -478,7 +478,10 @@ export class BackgroundService {
     }
 
     // Check if force HTML storage is enabled
-    const forceHtmlStorage = await extensionStorage.get('forceHtmlStorage', false);
+    const forceHtmlStorage = await extensionStorage.get(
+      'forceHtmlStorage',
+      false
+    );
     console.log('🔍 Force HTML storage enabled:', forceHtmlStorage);
 
     // If HTML is not provided but we should capture it
@@ -487,13 +490,18 @@ export class BackgroundService {
 
       // If force HTML storage is enabled OR URL requires auth, request HTML capture
       if (forceHtmlStorage || urlRequiresAuth) {
-        console.log('� Requesting HTML capture for:', url,
-          forceHtmlStorage ? '(forced)' : '(requires auth)');
+        console.log(
+          '� Requesting HTML capture for:',
+          url,
+          forceHtmlStorage ? '(forced)' : '(requires auth)'
+        );
         return {
           success: false,
           requiresAuth: true,
           forceHtmlCapture: forceHtmlStorage,
-          error: forceHtmlStorage ? 'Force HTML capture enabled' : 'URL requires authentication',
+          error: forceHtmlStorage
+            ? 'Force HTML capture enabled'
+            : 'URL requires authentication',
         };
       }
     }
@@ -607,7 +615,8 @@ export class BackgroundService {
         // Trigger download using Chrome Downloads API with data URL
         try {
           // Convert CSV to data URL (persists even if extension closes)
-          const dataUrl = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvData);
+          const dataUrl =
+            'data:text/csv;charset=utf-8,' + encodeURIComponent(csvData);
 
           const downloadId = await browser.downloads.download({
             url: dataUrl,
@@ -615,7 +624,10 @@ export class BackgroundService {
             saveAs: true,
           });
 
-          console.log('✅ CSV download triggered via Downloads API, ID:', downloadId);
+          console.log(
+            '✅ CSV download triggered via Downloads API, ID:',
+            downloadId
+          );
         } catch (downloadError) {
           console.error('❌ Failed to trigger download:', downloadError);
           return { success: false, error: 'Failed to trigger download' };
@@ -713,7 +725,8 @@ export class BackgroundService {
         // Trigger download using Chrome Downloads API with data URL
         try {
           // Convert CSV to data URL (persists even if extension closes)
-          const dataUrl = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvData);
+          const dataUrl =
+            'data:text/csv;charset=utf-8,' + encodeURIComponent(csvData);
 
           const downloadId = await browser.downloads.download({
             url: dataUrl,
@@ -721,7 +734,10 @@ export class BackgroundService {
             saveAs: true,
           });
 
-          console.log('✅ CSV sample download triggered via Downloads API, ID:', downloadId);
+          console.log(
+            '✅ CSV sample download triggered via Downloads API, ID:',
+            downloadId
+          );
         } catch (downloadError) {
           console.error('❌ Failed to trigger download:', downloadError);
           return { success: false, error: 'Failed to trigger download' };

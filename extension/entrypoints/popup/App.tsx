@@ -83,8 +83,14 @@ function App() {
         const storedPrompt = await extensionStorage.get('prompt', '');
         const crawlingMode = await extensionStorage.get('crawlingMode', false);
         const analysisMode = await extensionStorage.get('analysisMode', false);
-        const htmlStorage = await extensionStorage.get('forceHtmlStorage', false);
-        const savedStep = await extensionStorage.get('currentStep', Step.START_SCRAPING);
+        const htmlStorage = await extensionStorage.get(
+          'forceHtmlStorage',
+          false
+        );
+        const savedStep = await extensionStorage.get(
+          'currentStep',
+          Step.START_SCRAPING
+        );
 
         setPrompt(storedPrompt || '');
         setIsScrapingSession(trackingEnabled || false);
@@ -323,7 +329,11 @@ function App() {
           {[1, 2, 3, 4, 5].map(step => (
             <span
               key={step}
-              className={'dot' + (step === currentStep ? ' active' : '') + (step < currentStep ? ' completed' : '')}
+              className={
+                'dot' +
+                (step === currentStep ? ' active' : '') +
+                (step < currentStep ? ' completed' : '')
+              }
             />
           ))}
         </div>
@@ -343,15 +353,24 @@ function App() {
             />
             <div>
               <span>Force all content to be stored as HTML</span>
-              <small style={{ display: 'block', marginTop: '4px', color: '#7d8590', fontSize: '12px' }}>
-                Use this if you're scraping authenticated sites that aren't automatically detected by the app
+              <small
+                style={{
+                  display: 'block',
+                  marginTop: '4px',
+                  color: '#7d8590',
+                  fontSize: '12px',
+                }}
+              >
+                Use this if you're scraping authenticated sites that aren't
+                automatically detected by the app
               </small>
             </div>
           </div>
 
           {storageWarning && (
             <div className="storage-warning">
-              ⚠️ Storage is {storageUsage.toFixed(1)}% full! Consider clearing old data before continuing.
+              ⚠️ Storage is {storageUsage.toFixed(1)}% full! Consider clearing
+              old data before continuing.
             </div>
           )}
 
@@ -384,7 +403,9 @@ function App() {
       {currentStep === Step.VALIDATE_CONTENT && (
         <div className="step-content">
           <h2>2. Validate Scraped Content</h2>
-          <p>Review and validate the collected sites during the scraping session.</p>
+          <p>
+            Review and validate the collected sites during the scraping session.
+          </p>
 
           <div className="validation-stats">
             <div className="stat">
@@ -397,7 +418,9 @@ function App() {
             </div>
             <div className="stat">
               <span className="stat-label">Pending:</span>
-              <span className="stat-value">{totalResponses - validatedCount}</span>
+              <span className="stat-value">
+                {totalResponses - validatedCount}
+              </span>
             </div>
           </div>
 
@@ -412,7 +435,10 @@ function App() {
       {currentStep === Step.CONFIGURE_EXTRACTION && (
         <div className="step-content">
           <h2>3. What Do You Want to Extract?</h2>
-          <p>Describe what information you want to extract from the scraped content.</p>
+          <p>
+            Describe what information you want to extract from the scraped
+            content.
+          </p>
 
           <div className="prompt-section">
             <label htmlFor="prompt">Extraction Prompt:</label>
@@ -424,7 +450,10 @@ function App() {
               onChange={e => handlePromptChange(e.target.value)}
               rows={6}
             />
-            <small>Be specific about what data you want to extract. Explicitly define if some field must not be missing.</small>
+            <small>
+              Be specific about what data you want to extract. Explicitly define
+              if some field must not be missing.
+            </small>
           </div>
         </div>
       )}
@@ -448,7 +477,10 @@ function App() {
                 />
                 <h3>🔗 Crawling Mode</h3>
               </div>
-              <p>Follow links found in the content to discover and scrape additional pages.</p>
+              <p>
+                Follow links found in the content to discover and scrape
+                additional pages.
+              </p>
             </div>
 
             <div
@@ -464,12 +496,18 @@ function App() {
                 />
                 <h3>🔍 Analysis Mode</h3>
               </div>
-              <p>Perform deeper AI-powered analysis on the content to extract insights.</p>
+              <p>
+                Perform deeper AI-powered analysis on the content to extract
+                insights.
+              </p>
             </div>
           </div>
 
           <div className="mode-note">
-            <small>Note: Crawling and Analysis modes are mutually exclusive. Only one can be active at a time.</small>
+            <small>
+              Note: Crawling and Analysis modes are mutually exclusive. Only one
+              can be active at a time.
+            </small>
           </div>
         </div>
       )}
@@ -477,7 +515,10 @@ function App() {
       {currentStep === Step.VERIFY_AND_SEND && (
         <div className="step-content">
           <h2>5. Verify and Send to Processing</h2>
-          <p>Verify your configuration with a sample, then send all validated content for processing.</p>
+          <p>
+            Verify your configuration with a sample, then send all validated
+            content for processing.
+          </p>
 
           <div className="summary-section">
             <h3>Configuration Summary</h3>
@@ -485,13 +526,16 @@ function App() {
               <strong>Validated items:</strong> {validatedCount}
             </div>
             <div className="summary-item">
-              <strong>Extraction prompt:</strong> {prompt.substring(0, 100)}{prompt.length > 100 ? '...' : ''}
+              <strong>Extraction prompt:</strong> {prompt.substring(0, 100)}
+              {prompt.length > 100 ? '...' : ''}
             </div>
             <div className="summary-item">
-              <strong>Crawling mode:</strong> {isCrawlingMode ? '✅ Enabled' : '❌ Disabled'}
+              <strong>Crawling mode:</strong>{' '}
+              {isCrawlingMode ? '✅ Enabled' : '❌ Disabled'}
             </div>
             <div className="summary-item">
-              <strong>Analysis mode:</strong> {isAnalysisMode ? '✅ Enabled' : '❌ Disabled'}
+              <strong>Analysis mode:</strong>{' '}
+              {isAnalysisMode ? '✅ Enabled' : '❌ Disabled'}
             </div>
           </div>
 
@@ -523,7 +567,9 @@ function App() {
               onClick={handleSendAll}
               disabled={isSending || validatedCount === 0}
             >
-              {isSending ? '⟳ Sending...' : '📤 Send All ' + validatedCount + ' Items to Server'}
+              {isSending
+                ? '⟳ Sending...'
+                : '📤 Send All ' + validatedCount + ' Items to Server'}
             </button>
           </div>
         </div>
@@ -531,10 +577,7 @@ function App() {
 
       <div className="navigation-buttons">
         {currentStep > Step.START_SCRAPING && (
-          <button
-            className="btn-secondary"
-            onClick={handlePrevious}
-          >
+          <button className="btn-secondary" onClick={handlePrevious}>
             ← Previous
           </button>
         )}
