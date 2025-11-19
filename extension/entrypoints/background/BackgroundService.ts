@@ -477,15 +477,33 @@ export class BackgroundService {
       return { success: false, error: 'URL tracking is disabled' };
     }
 
-    const urlRequiresAuth =
-      !html && (await this.checkIfUrlRequiresAuthentication(url));
-    if (urlRequiresAuth) {
-      console.log('🚫 URL requires authentication, skipping:', url);
-      return {
-        success: false,
-        requiresAuth: true,
-        error: 'URL requires authentication',
-      };
+    // Check if force HTML storage is enabled
+    const forceHtmlStorage = await extensionStorage.get(
+      'forceHtmlStorage',
+      false
+    );
+    console.log('🔍 Force HTML storage enabled:', forceHtmlStorage);
+
+    // If HTML is not provided but we should capture it
+    if (!html) {
+      const urlRequiresAuth = await this.checkIfUrlRequiresAuthentication(url);
+
+      // If force HTML storage is enabled OR URL requires auth, request HTML capture
+      if (forceHtmlStorage || urlRequiresAuth) {
+        console.log(
+          '� Requesting HTML capture for:',
+          url,
+          forceHtmlStorage ? '(forced)' : '(requires auth)'
+        );
+        return {
+          success: false,
+          requiresAuth: true,
+          forceHtmlCapture: forceHtmlStorage,
+          error: forceHtmlStorage
+            ? 'Force HTML capture enabled'
+            : 'URL requires authentication',
+        };
+      }
     }
 
     console.log('📦 Storing URL for later batch sending:', url);
@@ -524,7 +542,6 @@ export class BackgroundService {
     success: boolean;
     error?: string;
     sent?: number;
-    csvData?: string;
   }> {
     console.log('🚀 Starting sendValidatedResponsesToServer()');
     try {
@@ -595,8 +612,28 @@ export class BackgroundService {
         const csvData = await response.text();
         console.log('📥 CSV data received, length:', csvData.length);
 
-        console.log('✅ CSV data ready for download');
-        return { success: true, sent: validatedResponses.length, csvData };
+        // Trigger download using Chrome Downloads API with data URL
+        try {
+          // Convert CSV to data URL (persists even if extension closes)
+          const dataUrl =
+            'data:text/csv;charset=utf-8,' + encodeURIComponent(csvData);
+
+          const downloadId = await browser.downloads.download({
+            url: dataUrl,
+            filename: 'scraping_results_all.csv',
+            saveAs: true,
+          });
+
+          console.log(
+            '✅ CSV download triggered via Downloads API, ID:',
+            downloadId
+          );
+        } catch (downloadError) {
+          console.error('❌ Failed to trigger download:', downloadError);
+          return { success: false, error: 'Failed to trigger download' };
+        }
+
+        return { success: true, sent: validatedResponses.length };
       } else {
         console.error('❌ Server returned error:', response.status);
         return { success: false, error: `Server error: ${response.status}` };
@@ -614,7 +651,6 @@ export class BackgroundService {
     success: boolean;
     error?: string;
     sent?: number;
-    csvData?: string;
   }> {
     console.log('🚀 Starting sendValidatedResponsesToServer()');
     try {
@@ -686,8 +722,28 @@ export class BackgroundService {
         const csvData = await response.text();
         console.log('📥 CSV data received, length:', csvData.length);
 
-        console.log('✅ CSV data ready for download');
-        return { success: true, sent: validatedResponses.length, csvData };
+        // Trigger download using Chrome Downloads API with data URL
+        try {
+          // Convert CSV to data URL (persists even if extension closes)
+          const dataUrl =
+            'data:text/csv;charset=utf-8,' + encodeURIComponent(csvData);
+
+          const downloadId = await browser.downloads.download({
+            url: dataUrl,
+            filename: 'scraping_results_sample.csv',
+            saveAs: true,
+          });
+
+          console.log(
+            '✅ CSV sample download triggered via Downloads API, ID:',
+            downloadId
+          );
+        } catch (downloadError) {
+          console.error('❌ Failed to trigger download:', downloadError);
+          return { success: false, error: 'Failed to trigger download' };
+        }
+
+        return { success: true, sent: validatedResponses.length };
       } else {
         console.error('❌ Server returned error:', response.status);
         return { success: false, error: `Server error: ${response.status}` };

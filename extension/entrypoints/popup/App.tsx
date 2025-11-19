@@ -3,37 +3,34 @@ import './App.css';
 import { browser } from 'wxt/browser';
 import { extensionStorage } from '../../utils/storage';
 import UrlsList from './UrlsList';
-import StorageView from './StorageView';
 import { ScrapeResponse } from '../background/BackgroundService';
 
-export enum Tab {
-  CONTROLS = 'controls',
-  URLS = 'urls',
-  HTMLS = 'htmls',
-  STORAGE = 'storage',
+export enum Step {
+  START_SCRAPING = 1,
+  VALIDATE_CONTENT = 2,
+  CONFIGURE_EXTRACTION = 3,
+  CONFIGURE_MODES = 4,
+  VERIFY_AND_SEND = 5,
 }
 
 function App() {
-  const [isTrackingEnabled, setIsTrackingEnabled] = useState(false);
+  const [currentStep, setCurrentStep] = useState<Step>(Step.START_SCRAPING);
+  const [isScrapingSession, setIsScrapingSession] = useState(false);
+  const [forceHtmlStorage, setForceHtmlStorage] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [prompt, setPrompt] = useState('');
-  const [activeTab, setActiveTab] = useState<Tab>(Tab.CONTROLS);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [verificationResult, setVerificationResult] = useState<string | null>(
-    null
-  );
   const [showVerification, setShowVerification] = useState(false);
-  const [pendingValidations, setPendingValidations] = useState(0);
-  const [pendingValidationsHtml, setPendingValidationsHtml] = useState(0);
+  const [totalResponses, setTotalResponses] = useState(0);
   const [validatedCount, setValidatedCount] = useState(0);
-  const [validatedHtmlCount, setValidatedHtmlCount] = useState(0);
   const [isSending, setIsSending] = useState(false);
   const [isCrawlingMode, setIsCrawlingMode] = useState(false);
   const [isAnalysisMode, setIsAnalysisMode] = useState(false);
+  const [storageWarning, setStorageWarning] = useState(false);
+  const [storageUsage, setStorageUsage] = useState(0);
 
-  // Load pending validations count
-  const loadPendingValidations = async () => {
-    console.log('Loading pending validations count...');
+  const loadResponsesCount = async () => {
+    console.log('Loading responses count...');
     try {
       const result = await browser.runtime.sendMessage<
         any,
@@ -42,60 +39,68 @@ function App() {
         type: 'GET_RESPONSES',
       });
 
-      console.log('Pending validations response:', result);
+      console.log('Responses result:', result);
 
       if (result.success) {
-        const pendingLink = (result.responses || []).filter(
-          (r: any) => r.type === 'url'
-        );
-        const pendingHtmls = (result.responses || []).filter(
-          (r: any) => r.type === 'html'
-        );
-        const pendingCount = pendingLink.filter(
-          (r: any) => r.validationStatus === 'pending'
-        ).length;
-        const validatedCount = pendingLink.filter(
+        const allResponses = result.responses || [];
+        const validated = allResponses.filter(
           (r: any) => r.validationStatus === 'validated'
-        ).length;
+        );
 
-        const pendingHtmlCount = pendingHtmls.filter(
-          (r: any) => r.validationStatus === 'pending'
-        ).length;
-        const validatedHtmlCount = pendingHtmls.filter(
-          (r: any) => r.validationStatus === 'validated'
-        ).length;
-
-        setPendingValidations(pendingCount);
-        setPendingValidationsHtml(pendingHtmlCount);
-        setValidatedCount(validatedCount);
-        setValidatedHtmlCount(validatedHtmlCount);
+        setTotalResponses(allResponses.length);
+        setValidatedCount(validated.length);
       }
     } catch (error) {
-      console.error('Failed to load pending validations:', error);
+      console.error('Failed to load responses:', error);
     }
   };
 
-  // Load settings and current URL on component mount
+  const loadStorageUsage = async () => {
+    try {
+      const result = await browser.runtime.sendMessage<
+        any,
+        { success: boolean; storageInfo: any }
+      >({
+        type: 'GET_STORAGE_USAGE',
+      });
+
+      if (result.success && result.storageInfo) {
+        setStorageUsage(result.storageInfo.percentageUsed);
+        setStorageWarning(result.storageInfo.percentageUsed > 80);
+      }
+    } catch (error) {
+      console.error('Failed to load storage usage:', error);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load tracking setting from storage
         const trackingEnabled = await extensionStorage.get(
           'urlTrackingEnabled',
           false
         );
-        const prompt = await extensionStorage.get('prompt', '');
-        setPrompt(prompt || '');
-        setIsTrackingEnabled(trackingEnabled || false);
-
+        const storedPrompt = await extensionStorage.get('prompt', '');
         const crawlingMode = await extensionStorage.get('crawlingMode', false);
-        setIsCrawlingMode(crawlingMode);
-
         const analysisMode = await extensionStorage.get('analysisMode', false);
-        setIsAnalysisMode(analysisMode);
+        const htmlStorage = await extensionStorage.get(
+          'forceHtmlStorage',
+          false
+        );
+        const savedStep = await extensionStorage.get(
+          'currentStep',
+          Step.START_SCRAPING
+        );
 
-        // Load pending validations
-        await loadPendingValidations();
+        setPrompt(storedPrompt || '');
+        setIsScrapingSession(trackingEnabled || false);
+        setIsCrawlingMode(crawlingMode);
+        setIsAnalysisMode(analysisMode);
+        setForceHtmlStorage(htmlStorage);
+        setCurrentStep(savedStep);
+
+        await loadResponsesCount();
+        await loadStorageUsage();
       } catch (error) {
         console.error('Failed to load data:', error);
       } finally {
@@ -106,20 +111,69 @@ function App() {
     loadData();
   }, []);
 
-  const handleToggleTracking = async (enabled: boolean) => {
-    try {
-      setIsTrackingEnabled(enabled);
-      await extensionStorage.set('urlTrackingEnabled', enabled);
+  useEffect(() => {
+    if (!isScrapingSession) return;
 
-      // Notify background script of the change
+    const interval = setInterval(() => {
+      loadStorageUsage();
+      loadResponsesCount();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [isScrapingSession]);
+
+  const handleForceHtmlStorageChange = async (enabled: boolean) => {
+    try {
+      setForceHtmlStorage(enabled);
+      await extensionStorage.set('forceHtmlStorage', enabled);
+    } catch (error) {
+      console.error('Failed to update force HTML storage:', error);
+    }
+  };
+
+  const handleStartScraping = async () => {
+    try {
+      setIsScrapingSession(true);
+      await extensionStorage.set('urlTrackingEnabled', true);
+
       await browser.runtime.sendMessage({
         type: 'TRACKING_TOGGLED',
-        enabled: enabled,
+        enabled: true,
       });
 
-      console.log(`URL tracking ${enabled ? 'enabled' : 'disabled'}`);
+      console.log('Scraping session started');
     } catch (error) {
-      console.error('Failed to update tracking setting:', error);
+      console.error('Failed to start scraping session:', error);
+    }
+  };
+
+  const handleEndScraping = async () => {
+    try {
+      setIsScrapingSession(false);
+      await extensionStorage.set('urlTrackingEnabled', false);
+
+      await browser.runtime.sendMessage({
+        type: 'TRACKING_TOGGLED',
+        enabled: false,
+      });
+
+      if (totalResponses > 0) {
+        setCurrentStep(Step.VALIDATE_CONTENT);
+        await extensionStorage.set('currentStep', Step.VALIDATE_CONTENT);
+      }
+
+      console.log('Scraping session ended');
+    } catch (error) {
+      console.error('Failed to end scraping session:', error);
+    }
+  };
+
+  const handlePromptChange = async (newPrompt: string) => {
+    try {
+      setPrompt(newPrompt);
+      await extensionStorage.set('prompt', newPrompt);
+    } catch (error) {
+      console.error('Failed to update prompt:', error);
     }
   };
 
@@ -128,7 +182,6 @@ function App() {
       setIsCrawlingMode(enabled);
       await extensionStorage.set('crawlingMode', enabled);
 
-      // If crawling mode is enabled, disable analysis mode
       if (enabled && isAnalysisMode) {
         setIsAnalysisMode(false);
         await extensionStorage.set('analysisMode', false);
@@ -142,8 +195,6 @@ function App() {
         type: 'CRAWLING_TOGGLED',
         enabled: enabled,
       });
-
-      console.log(`Crawling mode ${enabled ? 'enabled' : 'disabled'}`);
     } catch (error) {
       console.error('Failed to update crawling mode:', error);
     }
@@ -154,7 +205,6 @@ function App() {
       setIsAnalysisMode(enabled);
       await extensionStorage.set('analysisMode', enabled);
 
-      // If analysis mode is enabled, disable crawling mode
       if (enabled && isCrawlingMode) {
         setIsCrawlingMode(false);
         await extensionStorage.set('crawlingMode', false);
@@ -168,67 +218,8 @@ function App() {
         type: 'ANALYSIS_TOGGLED',
         enabled: enabled,
       });
-
-      console.log(`Analysis mode ${enabled ? 'enabled' : 'disabled'}`);
     } catch (error) {
       console.error('Failed to update analysis mode:', error);
-    }
-  };
-
-  const handlePromptChange = async (newPrompt: string) => {
-    try {
-      setPrompt(newPrompt);
-      // Should debounce probably. Leave for later.
-      await extensionStorage.set('prompt', newPrompt);
-      console.log('Prompt updated:', newPrompt);
-    } catch (error) {
-      console.error('Failed to update prompt:', error);
-    }
-  };
-
-  const handleSendValidated = async () => {
-    if (validatedCount === 0 && validatedHtmlCount === 0) {
-      alert('No validated responses to send!');
-      return;
-    }
-
-    console.log('🚀 Sending SEND_VALIDATED message to background script');
-    setIsSending(true);
-    try {
-      const result = await browser.runtime.sendMessage({
-        type: 'SEND_VALIDATED',
-      });
-
-      console.log('📨 Received response from background script:', result);
-
-      if (result.success) {
-        // Download the CSV file if we received CSV data
-        if (result.csvData) {
-          console.log('📥 Downloading CSV file...');
-          const blob = new Blob([result.csvData], {
-            type: 'text/csv;charset=utf-8;',
-          });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'scraping_results.csv';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          console.log('✅ CSV file downloaded successfully');
-        }
-
-        // Refresh the counts after sending
-        await loadPendingValidations();
-      } else {
-        alert(`Failed to send responses: ${result.error}`);
-      }
-    } catch (error) {
-      console.error('Failed to send validated responses:', error);
-      alert('Failed to send responses. Please try again.');
-    } finally {
-      setIsSending(false);
     }
   };
 
@@ -238,46 +229,87 @@ function App() {
       return;
     }
 
-    console.log('🔍 Sending VERIFY_SAMPLE message to background script');
     setIsVerifying(true);
-    setVerificationResult(null);
     try {
       const result = await browser.runtime.sendMessage({
         type: 'VERIFY_SAMPLE',
       });
 
-      console.log('📨 Received verification response:', result);
-
       if (result.success) {
-        setVerificationResult(result.csvData);
         setShowVerification(true);
-        // If the background returned CSV content as text, trigger download in the popup (DOM available here)
-        if (result.csvData) {
-          console.log('📥 Downloading CSV file...');
-          const blob = new Blob([result.csvData], {
-            type: 'text/csv;charset=utf-8;',
-          });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'scraping_results.csv';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          console.log('✅ CSV file downloaded successfully');
-        }
 
-        // Refresh the counts after sending
-        await loadPendingValidations();
+        // Download is handled by background service
+        await loadResponsesCount();
       } else {
-        alert(`Failed to verify sample: ${result.error}`);
+        alert('Failed to verify sample: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Failed to verify sample:', error);
       alert('Failed to verify sample. Please try again.');
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handleSendAll = async () => {
+    if (validatedCount === 0) {
+      alert('No validated responses to send!');
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const result = await browser.runtime.sendMessage({
+        type: 'SEND_VALIDATED',
+      });
+
+      if (result.success) {
+        // Download is handled by background service
+        await loadResponsesCount();
+        setCurrentStep(Step.START_SCRAPING);
+        await extensionStorage.set('currentStep', Step.START_SCRAPING);
+        setShowVerification(false);
+      } else {
+        alert('Failed to send responses: ' + (result.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Failed to send validated responses:', error);
+      alert('Failed to send responses. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleNext = async () => {
+    if (currentStep < Step.VERIFY_AND_SEND) {
+      const nextStep = (currentStep + 1) as Step;
+      setCurrentStep(nextStep);
+      await extensionStorage.set('currentStep', nextStep);
+    }
+  };
+
+  const handlePrevious = async () => {
+    if (currentStep > Step.START_SCRAPING) {
+      const prevStep = (currentStep - 1) as Step;
+      setCurrentStep(prevStep);
+      await extensionStorage.set('currentStep', prevStep);
+    }
+  };
+
+  const canProceedFromStep = (step: Step): boolean => {
+    switch (step) {
+      case Step.START_SCRAPING:
+        return !isScrapingSession && totalResponses > 0;
+      case Step.VALIDATE_CONTENT:
+        return validatedCount > 0;
+      case Step.CONFIGURE_EXTRACTION:
+        return prompt.trim().length > 0;
+      case Step.CONFIGURE_MODES:
+        return true;
+      case Step.VERIFY_AND_SEND:
+        return false;
+      default:
+        return false;
     }
   };
 
@@ -289,177 +321,276 @@ function App() {
     <>
       <h1>Web ScrAIper</h1>
 
-      {/* Tab Navigation */}
-      <div className="tab-navigation">
-        <button
-          className={`tab-button ${activeTab === Tab.CONTROLS ? 'active' : ''}`}
-          onClick={() => setActiveTab(Tab.CONTROLS)}
-        >
-          Controls
-        </button>
-        <button
-          className={`tab-button ${activeTab === Tab.URLS ? 'active' : ''}`}
-          onClick={() => setActiveTab(Tab.URLS)}
-        >
-          URLs
-          {pendingValidations > 0 && (
-            <span className="badge">{pendingValidations}</span>
-          )}
-        </button>
-        <button
-          className={`tab-button ${activeTab === Tab.HTMLS ? 'active' : ''}`}
-          onClick={() => setActiveTab(Tab.HTMLS)}
-        >
-          HTMLs
-          {pendingValidationsHtml > 0 && (
-            <span className="badge">{pendingValidationsHtml}</span>
-          )}
-        </button>
-        <button
-          className={`tab-button ${activeTab === Tab.STORAGE ? 'active' : ''}`}
-          onClick={() => setActiveTab(Tab.STORAGE)}
-        >
-          Storage
-        </button>
+      <div className="step-indicator">
+        <div className="step-progress">
+          Step {currentStep} of {Step.VERIFY_AND_SEND}
+        </div>
+        <div className="step-dots">
+          {[1, 2, 3, 4, 5].map(step => (
+            <span
+              key={step}
+              className={
+                'dot' +
+                (step === currentStep ? ' active' : '') +
+                (step < currentStep ? ' completed' : '')
+              }
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Controls Tab */}
-      {activeTab === 'controls' && (
-        <div className="tab-content">
-          <div>
-            <label htmlFor="prompt">Prompt:</label>
+      {currentStep === Step.START_SCRAPING && (
+        <div className="step-content">
+          <h2>1. Start Scraping Session</h2>
+          <p>Begin collecting sites you visit.</p>
+
+          <div className="checkbox-container">
+            <input
+              type="checkbox"
+              checked={forceHtmlStorage}
+              onChange={e => handleForceHtmlStorageChange(e.target.checked)}
+              disabled={isScrapingSession}
+            />
+            <div>
+              <span>Force all content to be stored as HTML</span>
+              <small
+                style={{
+                  display: 'block',
+                  marginTop: '4px',
+                  color: '#7d8590',
+                  fontSize: '12px',
+                }}
+              >
+                Use this if you're scraping authenticated sites that aren't
+                automatically detected by the app
+              </small>
+            </div>
+          </div>
+
+          {storageWarning && (
+            <div className="storage-warning">
+              ⚠️ Storage is {storageUsage.toFixed(1)}% full! Consider clearing
+              old data before continuing.
+            </div>
+          )}
+
+          {isScrapingSession && (
+            <div className="scraping-status">
+              <div className="status-badge active">
+                🟢 Scraping Session Active
+              </div>
+              <div className="session-stats">
+                <div>Total collected: {totalResponses}</div>
+                <div>Storage usage: {storageUsage.toFixed(1)}%</div>
+              </div>
+            </div>
+          )}
+
+          <div className="action-buttons">
+            {!isScrapingSession ? (
+              <button className="btn-primary" onClick={handleStartScraping}>
+                🚀 Start Scraping Session
+              </button>
+            ) : (
+              <button className="btn-danger" onClick={handleEndScraping}>
+                ⏹️ End Scraping Session
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {currentStep === Step.VALIDATE_CONTENT && (
+        <div className="step-content">
+          <h2>2. Validate Scraped Content</h2>
+          <p>
+            Review and validate the collected sites during the scraping session.
+          </p>
+
+          <div className="validation-stats">
+            <div className="stat">
+              <span className="stat-label">Total:</span>
+              <span className="stat-value">{totalResponses}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Validated:</span>
+              <span className="stat-value">{validatedCount}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Pending:</span>
+              <span className="stat-value">
+                {totalResponses - validatedCount}
+              </span>
+            </div>
+          </div>
+
+          <UrlsList
+            isVisible={true}
+            onValidationUpdate={loadResponsesCount}
+            tab={null}
+          />
+        </div>
+      )}
+
+      {currentStep === Step.CONFIGURE_EXTRACTION && (
+        <div className="step-content">
+          <h2>3. What Do You Want to Extract?</h2>
+          <p>
+            Describe what information you want to extract from the scraped
+            content.
+          </p>
+
+          <div className="prompt-section">
+            <label htmlFor="prompt">Extraction Prompt:</label>
             <textarea
               id="prompt"
               name="prompt"
               value={prompt}
-              placeholder="Enter your AI prompt for scraping pages..."
-              onChange={async e => await handlePromptChange(e.target.value)}
+              placeholder="Example: Extract product names, prices, and descriptions from the pages..."
+              onChange={e => handlePromptChange(e.target.value)}
+              rows={6}
             />
+            <small>
+              Be specific about what data you want to extract. Explicitly define
+              if some field must not be missing.
+            </small>
+          </div>
+        </div>
+      )}
+
+      {currentStep === Step.CONFIGURE_MODES && (
+        <div className="step-content">
+          <h2>4. Configure Processing Modes</h2>
+          <p>Choose how you want to process the scraped content.</p>
+
+          <div className="modes-section">
+            <div
+              className={'mode-card' + (isCrawlingMode ? ' active' : '')}
+              onClick={() => handleToggleCrawling(!isCrawlingMode)}
+            >
+              <div className="mode-header">
+                <input
+                  type="checkbox"
+                  checked={isCrawlingMode}
+                  onChange={e => handleToggleCrawling(e.target.checked)}
+                  onClick={e => e.stopPropagation()}
+                />
+                <h3>🔗 Crawling Mode</h3>
+              </div>
+              <p>
+                Follow links found in the content to discover and scrape
+                additional pages.
+              </p>
+            </div>
+
+            <div
+              className={'mode-card' + (isAnalysisMode ? ' active' : '')}
+              onClick={() => handleToggleAnalysis(!isAnalysisMode)}
+            >
+              <div className="mode-header">
+                <input
+                  type="checkbox"
+                  checked={isAnalysisMode}
+                  onChange={e => handleToggleAnalysis(e.target.checked)}
+                  onClick={e => e.stopPropagation()}
+                />
+                <h3>🔍 Analysis Mode</h3>
+              </div>
+              <p>
+                Perform deeper AI-powered analysis on the content to extract
+                insights.
+              </p>
+            </div>
           </div>
 
-          <div
-            className="checkbox-container"
-            onClick={() => handleToggleTracking(!isTrackingEnabled)}
-          >
-            <input
-              type="checkbox"
-              checked={isTrackingEnabled}
-              onChange={e => handleToggleTracking(e.target.checked)}
-              onClick={e => e.stopPropagation()} // Prevent container click when clicking checkbox
-            />
-            <span
-              className={`status-text ${isTrackingEnabled ? 'enabled' : 'disabled'}`}
-            >
-              {isTrackingEnabled
-                ? '🟢 URL Tracking Enabled'
-                : '🔴 URL Tracking Disabled'}
-            </span>
+          <div className="mode-note">
+            <small>
+              Note: Crawling and Analysis modes are mutually exclusive. Only one
+              can be active at a time.
+            </small>
+          </div>
+        </div>
+      )}
+
+      {currentStep === Step.VERIFY_AND_SEND && (
+        <div className="step-content">
+          <h2>5. Verify and Send to Processing</h2>
+          <p>
+            Verify your configuration with a sample, then send all validated
+            content for processing.
+          </p>
+
+          <div className="summary-section">
+            <h3>Configuration Summary</h3>
+            <div className="summary-item">
+              <strong>Validated items:</strong> {validatedCount}
+            </div>
+            <div className="summary-item">
+              <strong>Extraction prompt:</strong> {prompt.substring(0, 100)}
+              {prompt.length > 100 ? '...' : ''}
+            </div>
+            <div className="summary-item">
+              <strong>Crawling mode:</strong>{' '}
+              {isCrawlingMode ? '✅ Enabled' : '❌ Disabled'}
+            </div>
+            <div className="summary-item">
+              <strong>Analysis mode:</strong>{' '}
+              {isAnalysisMode ? '✅ Enabled' : '❌ Disabled'}
+            </div>
           </div>
 
-          <div
-            className="checkbox-container"
-            onClick={() => handleToggleCrawling(!isCrawlingMode)}
-          >
-            <input
-              type="checkbox"
-              checked={isCrawlingMode}
-              onChange={e => handleToggleCrawling(e.target.checked)}
-              onClick={e => e.stopPropagation()}
-            />
-            <span
-              className={`status-text ${isCrawlingMode ? 'enabled' : 'disabled'}`}
+          <div className="verify-section">
+            <button
+              className="btn-secondary"
+              onClick={handleVerifySample}
+              disabled={isVerifying || validatedCount === 0}
             >
-              {isCrawlingMode
-                ? '🟢 Crawling Mode Enabled'
-                : '🔴 Crawling Mode Disabled'}
-            </span>
-          </div>
+              {isVerifying ? '⟳ Verifying...' : '🔍 Verify Sample (3 items)'}
+            </button>
 
-          <div
-            className="checkbox-container"
-            onClick={() => handleToggleAnalysis(!isAnalysisMode)}
-          >
-            <input
-              type="checkbox"
-              checked={isAnalysisMode}
-              onChange={e => handleToggleAnalysis(e.target.checked)}
-              onClick={e => e.stopPropagation()}
-            />
-            <span
-              className={`status-text ${isAnalysisMode ? 'enabled' : 'disabled'}`}
-            >
-              {isAnalysisMode
-                ? '🟢 Analysis Mode Enabled'
-                : '🔴 Analysis Mode Disabled'}
-            </span>
+            {showVerification && (
+              <div className="verification-result">
+                <p>✅ Sample CSV downloaded. Check the results!</p>
+                <button
+                  className="btn-link"
+                  onClick={() => setCurrentStep(Step.CONFIGURE_EXTRACTION)}
+                >
+                  ✏️ Adjust Prompt
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="send-section">
             <button
-              className="verify-button"
-              onClick={handleVerifySample}
-              disabled={isVerifying || validatedCount === 0}
-            >
-              {isVerifying ? '⟳ Verifying...' : `🔍 Verify Sample (3 URLs)`}
-            </button>
-
-            <button
-              className="send-button"
-              onClick={handleSendValidated}
-              disabled={
-                isSending || (validatedCount === 0 && validatedHtmlCount === 0)
-              }
+              className="btn-primary btn-large"
+              onClick={handleSendAll}
+              disabled={isSending || validatedCount === 0}
             >
               {isSending
                 ? '⟳ Sending...'
-                : `📤 Send ${validatedCount + validatedHtmlCount} URLs to processing`}
+                : '📤 Send All ' + validatedCount + ' Items to Server'}
             </button>
           </div>
-          {/* Verification Results Actions */}
-          {showVerification && (
-            <div className="verification-preview">
-              <h3>✅ Verification CSV Downloaded</h3>
-              <p>Check the downloaded file to verify the results.</p>
-              <div className="verification-actions">
-                <button
-                  className="adjust-button"
-                  onClick={() => setShowVerification(false)}
-                >
-                  ✏️ Adjust Prompt
-                </button>
-                <button
-                  className="proceed-button"
-                  onClick={handleSendValidated}
-                  disabled={isSending}
-                >
-                  ✅ Looks Good - Process All
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Urls Tab */}
-      <UrlsList
-        isVisible={[Tab.URLS].includes(activeTab)}
-        onValidationUpdate={loadPendingValidations}
-        tab={activeTab}
-      />
-
-      <UrlsList
-        isVisible={[Tab.HTMLS].includes(activeTab)}
-        onValidationUpdate={loadPendingValidations}
-        tab={activeTab}
-      />
-
-      {/* Storage Tab */}
-      {activeTab === Tab.STORAGE && (
-        <StorageView
-          isVisible={activeTab === Tab.STORAGE}
-          onStorageUpdate={() => {}}
-        />
-      )}
+      <div className="navigation-buttons">
+        {currentStep > Step.START_SCRAPING && (
+          <button className="btn-secondary" onClick={handlePrevious}>
+            ← Previous
+          </button>
+        )}
+        {currentStep < Step.VERIFY_AND_SEND && (
+          <button
+            className="btn-primary"
+            onClick={handleNext}
+            disabled={!canProceedFromStep(currentStep)}
+          >
+            Next →
+          </button>
+        )}
+      </div>
     </>
   );
 }
