@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class InputFormat(str, Enum):
@@ -16,6 +16,11 @@ class OutputFormat(str, Enum):
 
     XPATH = 'xpath'
 
+class FetchRequest(BaseModel):
+    """Request model for fetching and validating selectors"""
+
+    url: str = Field(..., description='The URL of the page to scrape')
+    selectors: dict[str, str] = Field(..., description='A dictionary of field names to XPath selectors')
 
 class ScrapeRequest(BaseModel):
     """Request model for scraping agent"""
@@ -44,11 +49,17 @@ class ScrapeRequest(BaseModel):
         }
 
 
-# ... (after your existing models)
 
 class FieldSelectors(BaseModel):
     """Pydantic model for a single field's selectors, matching the prompt."""
     xpath: str | None = Field(None, description='XPath selector for the field')
+
+    @model_validator(mode='before')
+    @classmethod
+    def parse_string_input(cls, v):
+        if isinstance(v, str):
+            return {'xpath': v}
+        return v
 
 
 class ModelResponse(BaseModel):

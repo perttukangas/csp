@@ -1,5 +1,8 @@
+import selectors
 from playwright.sync_api import sync_playwright
 from lxml import html
+
+from app.models.scrape import InputFormat, OutputFormat, ScrapeRequest, ScrapeResponse, ProcessRequest, ModelResponse, FieldSelectors
 
 def fetch_with_selectors(url: str, selectors: dict[str, str]) -> dict[str, list]:
     """
@@ -34,12 +37,28 @@ def fetch_with_selectors(url: str, selectors: dict[str, str]) -> dict[str, list]
 
         tree = html.fromstring(content)
         extracted = {}
+       
         for key, xpath in selectors.items():
             try:
-                extracted[key] = tree.xpath(xpath)
+                raw_results = tree.xpath(xpath)
+                cleaned_results = []
+                
+                # 🔹 FIX: Convert lxml objects to strings
+                for item in raw_results:
+                    if hasattr(item, 'text_content'):
+                        # It's an Element (e.g., matched //h1 instead of //h1/text())
+                        # Extract text content so it's readable in JSON
+                        cleaned_results.append(item.text_content().strip())
+                    else:
+                        # It's already a string (e.g., matched //h1/text() or //a/@href)
+                        cleaned_results.append(str(item).strip())
+                        
+                extracted[key] = cleaned_results
             except Exception as e:
                 extracted[key] = [f"XPath Error: {str(e)}"]
-                
+
+
+
         print(f"Extracted data: {extracted}")
         return extracted
     except Exception as e:

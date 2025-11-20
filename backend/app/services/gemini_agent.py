@@ -2,12 +2,15 @@ import json
 
 from google import genai
 from google.genai import types
+import time
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
+
+from google.api_core.exceptions import GoogleAPICallError, ResourceExhausted, DeadlineExceeded
 
 
 from app.core.config import settings
-from app.models.scrape import InputFormat, OutputFormat, ScrapeRequest, ScrapeResponse, ProcessRequest, ModelResponse
+from app.models.scrape import InputFormat, OutputFormat, ScrapeRequest, ScrapeResponse, ProcessRequest, ModelResponse, FieldSelectors, FetchRequest
 from app.services.agent_tools import fetch_with_selectors
 # ------------------------------------------------------------
 # 🔹 Helper functions for prompt text
@@ -113,27 +116,51 @@ class GeminiAgentService:
 
         # 🔹 UPDATED: Define tools using Pydantic's .model_json_schema()
         
-        # 1. Schema for the validation tool
         fetch_tool_decl = {
             "name": "fetch_with_selectors",
             "description": "Fetches a URL and runs XPath selectors to validate them. Returns the extracted data.",
-            "parameters": BaseModel.model_config_create_json_schema(
-                                {
-                                    'url': (str, ...),
-                                    'selectors': (dict[str, str], ...),
-                                },
-                            )
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "url": {
+                        "type": "STRING",
+                        "description": "The URL to fetch."
+                    },
+                    "selectors": {
+                        "type": "OBJECT",
+                        "description": "Dictionary where keys are field names and values are XPath strings."
+                    }
+                },
+                "required": ["url", "selectors"]
+            }
         }
         
         # 2. Schema for the final submission tool (uses our Pydantic model)
         submit_tool_decl = {
             "name": "submit_final_selectors",
             "description": "Submits the final, validated selectors when the task is complete.",
-            "parameters": ModelResponse.model_json_schema() # <-- Much cleaner!
+            # 🔹 MISSING LAYER: Everything below must be inside 'parameters'
+            "parameters": {  
+                "type": "OBJECT",
+                "properties": {
+                    "selectors": {
+                        "type": "OBJECT",
+                        "description": "A dictionary mapping snake_case field names...",
+                    }
+                },
+                "required": ["selectors"]
+            }
         }
 
         # 3. Create the tools list
         self.tools = [types.Tool(function_declarations=[fetch_tool_decl, submit_tool_decl])]
+        
+        self.config = types.GenerateContentConfig(
+            tools=self.tools
+        )
+
+
+
     # -----------------------------
     # Prompt construction
     # -----------------------------
@@ -157,7 +184,7 @@ class GeminiAgentService:
 
         User Request: {request.user_request}
 
-        Generate the selectors now. Return ONLY the JSON output, no other text.
+        Generate the selectors now.
         """
         return types.Content(parts=[types.Part(text=prompt)])
 
@@ -194,26 +221,25 @@ Reasoning: {validation_fail_reasoning}
         """Calls Gemini to analyze the page and extract structured data directly."""
         system_prompt = types.Content(parts=[types.Part(text=get_analysis_instructions())], role='user')
         user_prompt = self._build_user_prompt(request)
-
-        # 🔹 UPDATED: Define schema as a dict, per documentation
-        # This schema allows a list ([]) of any objects ({})
         flexible_analysis_schema = {
             "type": "ARRAY",
             "items": {"type": "OBJECT"}
         }
-
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=[system_prompt, user_prompt],
-                generation_config=types.GenerationConfig(
-                    response_mime_type='application/json',
-                    response_schema=flexible_analysis_schema, # <-- Pass the dict directly
-                ),
-            )
-            raw_output = response.text
-        except Exception as e:
-            raise RuntimeError(f'Gemini API call failed: {e}') from e
+        api_retry = 3
+        for _ in range(api_retry):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=[system_prompt, user_prompt],
+                    generation_config=types.GenerationConfig(
+                        response_mime_type='application/json',
+                        response_schema=flexible_analysis_schema,
+                    ),
+                )
+                raw_output = response.text
+            except  (GoogleAPICallError, ResourceExhausted, DeadlineExceeded) as api_error:
+                print(f"API call failed: {api_error}. Retrying after delay...")
+                time.sleep(2)
 
         try:
             parsed_data = json.loads(raw_output)
@@ -231,7 +257,7 @@ Reasoning: {validation_fail_reasoning}
 
 
     def generate_selectors(
-        self, request: ScrapeRequest, validation_fail_reasoning: str, max_retries: int = 5
+        self, request: ScrapeRequest, validation_fail_reasoning: str, max_validations: int = 5
     ) -> ScrapeResponse:
         """Calls Gemini and uses a tool-calling loop to validate selectors."""
         
@@ -241,24 +267,45 @@ Reasoning: {validation_fail_reasoning}
         
         history = [system_prompt, user_prompt, validated_prompt]
         
-        for _ in range(max_retries):
+        for _ in range(max_validations):
             try:
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=history,
-                    tools=self.tools
-                )
-                
+                print("Calling Gemini model...")
+                api_retry = 3
+                for _ in range(api_retry):
+                    try:
+                        response = self.client.models.generate_content(
+                            model=self.model_name,
+                            contents=history,
+                            config=self.config
+                        )
+                    except (GoogleAPICallError, ResourceExhausted, DeadlineExceeded) as api_error:
+                        print(f"API call failed: {api_error}. Retrying after delay...")
+                        time.sleep(2)
+
+                print("Gemini model called.")
+                print(f"Raw response: {response.text}")
+
+                if not response.candidates[0].content.parts or not response.candidates[0].content.parts[0].function_call:
+                     part_text = response.text
+                     raise RuntimeError(f"Model returned text instead of calling a tool: {part_text}")
+
                 part = response.candidates[0].content.parts[0]
                 
-                if part.function_call and part.function_call.name == 'submit_final_selectors':
+                # 🔹 FIX: Access 'args' directly as a property, not via to_dict()
+                print("Getting function call arguments...")
+                function_args = part.function_call.args
+                print(f"Function call arguments: {function_args}")
+                print("Determining which function was called...")
+                function_name = part.function_call.name
+                print(f"Function called: {function_name}")
+                
+                if function_name == 'submit_final_selectors':
                     print("Gemini is submitting final selectors.")
-                    args_dict = types.FunctionCall.to_dict(part.function_call)
                     
-                    model_response = ModelResponse.model_validate(args_dict['args'])
+                    model_response = ModelResponse.model_validate(function_args)
                     
                     final_selectors = {
-                        name: Selectors(xpath=data.xpath) 
+                        name: FieldSelectors(xpath=data.xpath) 
                         for name, data in model_response.selectors.items()
                     }
                     
@@ -269,9 +316,9 @@ Reasoning: {validation_fail_reasoning}
                         extracted_data=None
                     )
 
-                elif part.function_call and part.function_call.name == 'fetch_with_selectors':
+                elif function_name == 'fetch_with_selectors':
                     print("Gemini is validating selectors...")
-                    args_dict = types.FunctionCall.to_dict(part.function_call)['args']
+                    args_dict = function_args
                     
                     url_to_fetch = args_dict.get('url', request.url)
                     selectors_to_fetch = args_dict.get('selectors', {})
@@ -297,7 +344,7 @@ Reasoning: {validation_fail_reasoning}
             except (Exception, ValidationError) as e:
                 raise RuntimeError(f'Gemini API call or validation failed: {e}') from e
 
-        raise RuntimeError(f'Failed to generate and validate selectors after {max_retries} attempts.')
+        raise RuntimeError(f'Failed to generate and validate selectors after {max_validations} attempts.')
 
     def validate_and_refine_selectors(self, validation_prompt: str) -> dict:
         try:
