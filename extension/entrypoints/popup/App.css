@@ -387,9 +387,11 @@ button {
 
 .response-header {
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  gap: 12px;
 }
 
 .response-url {
@@ -400,6 +402,10 @@ button {
   font-size: 14px;
   flex: 1;
   max-width: 200px;
+}
+
+.url-hostname {
+  color: #258bff;
 }
 
 .response-meta {

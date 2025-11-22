@@ -263,6 +263,9 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
                 <div className="response-type-badge">
                   {response.type === 'html' ? '📄 Auth Site' : '🔗 Site'}
                 </div>
+                <div className="response-url url-hostname">
+                  Host name: {new URL(response.url).hostname}
+                </div>
                 <div className="response-url" title={response.url}>
                   {truncateUrl(response.url)}
                 </div>
