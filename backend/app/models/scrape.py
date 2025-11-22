@@ -16,11 +16,13 @@ class OutputFormat(str, Enum):
 
     XPATH = 'xpath'
 
+
 class FetchRequest(BaseModel):
     """Request model for fetching and validating selectors"""
 
     url: str = Field(..., description='The URL of the page to scrape')
     selectors: dict[str, str] = Field(..., description='A dictionary of field names to XPath selectors')
+
 
 class ScrapeRequest(BaseModel):
     """Request model for scraping agent"""
@@ -49,9 +51,9 @@ class ScrapeRequest(BaseModel):
         }
 
 
-
 class FieldSelectors(BaseModel):
     """Pydantic model for a single field's selectors, matching the prompt."""
+
     xpath: str | None = Field(None, description='XPath selector for the field')
 
     @model_validator(mode='before')
@@ -67,11 +69,11 @@ class ModelResponse(BaseModel):
     The structured JSON response we expect from the model.
     This is what the model will pass to the 'submit_final_selectors' tool.
     """
+
     selectors: dict[str, FieldSelectors] = Field(
-        ...,
-        description="A dictionary mapping snake_case field names to their selectors."
+        ..., description='A dictionary mapping snake_case field names to their selectors.'
     )
-    
+
     class Config:
         json_schema_extra = {
             'example': {
@@ -82,11 +84,14 @@ class ModelResponse(BaseModel):
             }
         }
 
+
 class ScrapeResponse(BaseModel):
     """Response model from scraping agent"""
 
     url: str = Field(..., description='The URL that was analyzed')
-    selectors: dict[str, FieldSelectors] | None = Field(None, description='Generated selectors for each requested field')
+    selectors: dict[str, FieldSelectors] | None = Field(
+        None, description='Generated selectors for each requested field'
+    )
     raw_output: str | None = Field(None, description='Raw output from the AI model (for debugging)')
     extracted_data: list[dict[str, Any]] | None = Field(
         None, description='Extracted structured data (for analysis mode)'

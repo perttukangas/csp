@@ -7,7 +7,7 @@ from app.services.gemini_agent import get_gemini_service
 
 def run_dummy_test():
     # Replace with ANY website you want
-    test_url = "https://example.com"
+    test_url = 'https://example.com'
 
     # Minimal HTML for testing (no actual scraping needed)
     dummy_html = """
@@ -20,7 +20,7 @@ def run_dummy_test():
     """
 
     # Your prompt – replace with anything you want
-    user_prompt = "Extract the page title."
+    user_prompt = 'Extract the page title.'
 
     req = ScrapeRequest(
         url=test_url,
@@ -34,20 +34,16 @@ def run_dummy_test():
     service = get_gemini_service()
 
     try:
-        result = service.generate_selectors(
-            request=req,
-            validation_fail_reasoning="",
-            max_validations=5
-        )
-        print("RAW OUTPUT:")
+        result = service.generate_selectors(request=req, validation_fail_reasoning='', max_validations=5)
+        print('RAW OUTPUT:')
         print(result.raw_output)
-        print("\nSELECTORS:")
+        print('\nSELECTORS:')
         print(result.selectors)
 
     except Exception as e:
-        print("\n❌ ERROR DURING DUMMY RUN")
+        print('\n❌ ERROR DURING DUMMY RUN')
         print(e)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     run_dummy_test()
