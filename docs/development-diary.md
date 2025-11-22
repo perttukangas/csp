@@ -1,3 +1,41 @@
+17.11
+
+- 2 phase processing for urls #12
+- Make analyze use playwright #39
+- Make analyze be able to use authenticated scraping #41
+
+Not yet completed due to challenges, but getting there:
+
+- Try gemini function calling #36
+- Make crawling more robust #40
+- UX for grannys #42
+- Retry gemini request 2x #43
+
+What is planned next:
+- Demo preparations
+- Finish above unfinished tasks
+
+## 10.11
+
+- Alternative extract mode #27
+- Testing basic functionality on different sites #28
+- Testing auth scraping #29
+- Crawling along different next page links #13
+
+Not yet completed due to challenges, but getting there:
+
+- 2 phase processing for urls #12
+
+What is planned next:
+
+- Handle SPA better #34
+- Make analyze use playwright #39
+- Make analyze be able to use authenticated scraping #41
+- Try gemini function calling #36
+- Make crawling more robust #40
+- UX for grannys #42
+- Retry gemini request 2x #43
+
 ## 3.11
 
 - Improve authenticated scraping #22

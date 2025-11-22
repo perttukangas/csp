@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { browser } from 'wxt/browser';
 import { ScrapeResponse } from '../background/BackgroundService';
-import { Tab } from './App';
+import HtmlPreview from './HtmlPreview';
 
 interface UrlsListProps {
   isVisible: boolean;
   onValidationUpdate?: () => void;
-  tab: Tab;
+  tab: any;
 }
 
 function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
@@ -16,6 +16,8 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const [isValidatingAll, setIsValidatingAll] = useState(false);
   const [isRemovingAll, setIsRemovingAll] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   const loadResponses = async () => {
     if (!isVisible) return;
@@ -32,10 +34,8 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
       console.log('Load responses result:', result);
 
       if (result.success) {
-        const filterPerType = (result.responses || []).filter(r =>
-          tab === Tab.URLS ? r.type === 'url' : r.type === 'html'
-        );
-        setResponses(filterPerType);
+        // Show all responses (both URLs and HTMLs) in the unified view, newest first
+        setResponses((result.responses || []).reverse());
       } else {
         console.error('Failed to load responses:', result.error);
       }
@@ -224,6 +224,16 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
 
   return (
     <div className="tab-content">
+      {previewUrl && (
+        <HtmlPreview
+          url={previewUrl}
+          html={previewHtml}
+          onClose={() => {
+            setPreviewUrl(null);
+            setPreviewHtml(null);
+          }}
+        />
+      )}
       <div className="responses-header">
         {responses.length > 0 && (
           <div className="bulk-actions">
@@ -236,7 +246,7 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
                 responses.filter(r => r.validationStatus === 'pending')
                   .length === 0
               }
-              title="Validate all pending URLs"
+              title="Validate all pending sites"
             >
               {isValidatingAll ? '⟳' : '✅'} Validate All
             </button>
@@ -244,7 +254,7 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
               className="btn-danger"
               onClick={handleRemoveAll}
               disabled={isValidatingAll || isRemovingAll}
-              title="Remove all URLs from storage"
+              title="Remove all sites from storage"
             >
               {isRemovingAll ? '⟳' : '🗑️'} Remove All
             </button>
@@ -253,16 +263,22 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
       </div>
 
       {isLoading && responses.length === 0 ? (
-        <div className="loading-state">Loading URLs...</div>
+        <div className="loading-state">Loading sites...</div>
       ) : responses.length === 0 ? (
         <div className="empty-state">
-          No URLs stored yet. Visit some pages to see them here!
+          No sites stored yet. Visit some pages to see them here!
         </div>
       ) : (
         <div className="responses-container">
           {responses.map(response => (
             <div key={response.url} className="response-card">
               <div className="response-header">
+                <div className="response-type-badge">
+                  {response.type === 'html' ? '📄 Auth Site' : '🔗 Site'}
+                </div>
+                <div className="response-url url-hostname">
+                  Host name: {new URL(response.url).hostname}
+                </div>
                 <div className="response-url" title={response.url}>
                   {truncateUrl(response.url)}
                 </div>
@@ -302,6 +318,22 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
                     </button>
                   </>
                 )}
+                {response.html && (
+                  <button
+                    className="btn-info"
+                    onClick={() => {
+                      setPreviewUrl(response.url);
+                      setPreviewHtml(response.html || null);
+                    }}
+                    disabled={
+                      validatingIds.has(response.url) ||
+                      removingIds.has(response.url)
+                    }
+                    title="Preview HTML content"
+                  >
+                    👁️ Preview
+                  </button>
+                )}
                 <button
                   className="btn-danger"
                   onClick={() => handleRemoveResponse(response.url)}
@@ -309,7 +341,7 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
                     validatingIds.has(response.url) ||
                     removingIds.has(response.url)
                   }
-                  title="Remove this URL from storage"
+                  title="Remove this site from storage"
                 >
                   {removingIds.has(response.url) ? '⟳' : '🗑️'} Remove
                 </button>
