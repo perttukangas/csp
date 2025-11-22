@@ -114,7 +114,6 @@ class GeminiAgentService:
         self.client = genai.Client(api_key=settings.gemini_api_key)
         self.model_name = 'models/gemini-2.5-flash'
 
-        # 🔹 UPDATED: Define tools using Pydantic's .model_json_schema()
         
         fetch_tool_decl = {
             "name": "fetch_with_selectors",
