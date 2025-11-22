@@ -54,7 +54,19 @@ const cleanHTMLForScraping = (html: string): string => {
   noscripts.forEach(noscript => noscript.remove());
 
   // Remove other non-content tags
-  const tagsToRemove = ['link', 'meta', 'base', 'head'];
+  const tagsToRemove = [
+    'link',
+    'meta',
+    'base',
+    'head',
+    'iframe',
+    'svg',
+    'canvas',
+    'video',
+    'audio',
+    'input',
+    'img',
+  ];
   tagsToRemove.forEach(tag => {
     const elements = tempDiv.querySelectorAll(tag);
     elements.forEach(element => element.remove());
