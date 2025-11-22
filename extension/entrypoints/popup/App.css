@@ -540,6 +540,29 @@ button {
   transform: none !important;
 }
 
+.btn-info {
+  background: #1f6feb;
+  color: white;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-info:hover:not(:disabled) {
+  background: #388bfd;
+  transform: translateY(-1px);
+}
+
+.btn-info:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
 /* Empty and loading states */
 .empty-state {
   text-align: center;

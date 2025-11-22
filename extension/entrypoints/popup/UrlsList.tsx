@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { browser } from 'wxt/browser';
 import { ScrapeResponse } from '../background/BackgroundService';
+import HtmlPreview from './HtmlPreview';
 
 interface UrlsListProps {
   isVisible: boolean;
@@ -15,6 +16,8 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const [isValidatingAll, setIsValidatingAll] = useState(false);
   const [isRemovingAll, setIsRemovingAll] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   const loadResponses = async () => {
     if (!isVisible) return;
@@ -221,6 +224,16 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
 
   return (
     <div className="tab-content">
+      {previewUrl && (
+        <HtmlPreview
+          url={previewUrl}
+          html={previewHtml}
+          onClose={() => {
+            setPreviewUrl(null);
+            setPreviewHtml(null);
+          }}
+        />
+      )}
       <div className="responses-header">
         {responses.length > 0 && (
           <div className="bulk-actions">
@@ -304,6 +317,22 @@ function UrlsList({ isVisible, onValidationUpdate, tab }: UrlsListProps) {
                       {validatingIds.has(response.url) ? '⟳' : '❌'} Invalid
                     </button>
                   </>
+                )}
+                {response.html && (
+                  <button
+                    className="btn-info"
+                    onClick={() => {
+                      setPreviewUrl(response.url);
+                      setPreviewHtml(response.html || null);
+                    }}
+                    disabled={
+                      validatingIds.has(response.url) ||
+                      removingIds.has(response.url)
+                    }
+                    title="Preview HTML content"
+                  >
+                    👁️ Preview
+                  </button>
                 )}
                 <button
                   className="btn-danger"
