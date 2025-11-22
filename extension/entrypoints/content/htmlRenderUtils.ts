@@ -249,7 +249,7 @@ export const getRenderedHTML = () => {
   }
 
   // Chrome local storage has much higher limits (~10MB), but let's still be reasonable
-  const maxSize = 50000; // 50KB should be plenty for scraping while being reasonable
+  const maxSize = 250000; // 50KB should be plenty for scraping while being reasonable
   if (cleanedHTML.length > maxSize) {
     console.warn(
       `⚠️ HTML still too large (${cleanedHTML.length} bytes), truncating to ${maxSize} bytes`
