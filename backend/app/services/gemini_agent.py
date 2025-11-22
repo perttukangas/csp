@@ -3,6 +3,7 @@ import json
 from google import genai
 from google.genai import types
 import time
+from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -106,9 +107,9 @@ def get_analysis_instructions() -> str:
     """
 
 
-def pydantic_to_google_schema(model: type[BaseModel]) -> types.Schema:
-    """Converts a Pydantic model to a Google GenAI Schema."""
-    return types.Schema.from_dict(model.model_json_schema())
+def pydantic_to_google_schema(model: type[BaseModel]) -> dict:
+    """Converts a Pydantic model to a Google GenAI Schema dict."""
+    return model.model_json_schema()
 
 
 # ------------------------------------------------------------
@@ -226,7 +227,7 @@ Reasoning: {validation_fail_reasoning}
         """Calls Gemini to analyze the page and extract structured data directly."""
         system_prompt = types.Content(parts=[types.Part(text=get_analysis_instructions())], role='user')
         user_prompt = self._build_user_prompt(request)
-        flexible_analysis_schema = {'type': 'ARRAY', 'items': {'type': 'OBJECT'}}
+        flexible_analysis_schema: dict[str, str | dict[str, str]] = {'type': 'ARRAY', 'items': {'type': 'OBJECT'}}
         api_retry = 3
         for _ in range(api_retry):
             try:
@@ -235,7 +236,7 @@ Reasoning: {validation_fail_reasoning}
                     contents=[system_prompt, user_prompt],
                     generation_config=types.GenerationConfig(
                         response_mime_type='application/json',
-                        response_schema=flexible_analysis_schema,
+                        response_schema=flexible_analysis_schema,  # type: ignore[arg-type]
                     ),
                 )
                 raw_output = response.text
@@ -313,16 +314,16 @@ Reasoning: {validation_fail_reasoning}
                     return ScrapeResponse(
                         url=request.url,
                         selectors=final_selectors,
-                        raw_output=json.dumps(args_dict),
+                        raw_output=json.dumps(dict(function_args)),
                         extracted_data=None,
                     )
 
                 elif function_name == 'fetch_with_selectors':
                     print('Gemini is validating selectors...')
-                    args_dict = function_args
+                    args_dict: dict[str, str] = dict(function_args)
 
-                    url_to_fetch = args_dict.get('url', request.url)
-                    selectors_to_fetch = args_dict.get('selectors', {})
+                    url_to_fetch: str = args_dict.get('url', request.url)
+                    selectors_to_fetch: dict[str, str] = args_dict.get('selectors', {})  # type: ignore[assignment]
 
                     extracted_data = fetch_with_selectors(url_to_fetch, selectors_to_fetch)
 

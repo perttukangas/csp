@@ -13,7 +13,7 @@ from app.models.scrape import (
 )
 
 
-def fetch_with_selectors(url: str, selectors: dict[str, str]) -> dict[str, list]:
+def fetch_with_selectors(url: str, selectors: dict[str, str]) -> dict[str, list[str] | str]:
     """
     Fetches content from a URL and extracts data using a given set of XPath selectors.
 
@@ -28,7 +28,7 @@ def fetch_with_selectors(url: str, selectors: dict[str, str]) -> dict[str, list]
     print(f'Selectors: {selectors}')
 
     if not selectors:
-        return {'error': 'No selectors provided for validation.'}
+        return {'error': ['No selectors provided for validation.']}
 
     try:
         # Use the synchronous API
@@ -39,25 +39,30 @@ def fetch_with_selectors(url: str, selectors: dict[str, str]) -> dict[str, list]
                 page.goto(url, timeout=15000)
             except Exception as e:
                 browser.close()
-                return {'error': f'Failed to navigate to URL: {str(e)}'}
+                return {'error': [f'Failed to navigate to URL: {str(e)}']}
 
             content = page.content()
             browser.close()
 
         tree = html.fromstring(content)
-        extracted = {}
+        extracted: dict[str, list[str] | str] = {}
 
         for key, xpath in selectors.items():
             try:
                 raw_results = tree.xpath(xpath)
-                cleaned_results = []
+                cleaned_results: list[str] = []
 
                 # 🔹 FIX: Convert lxml objects to strings
+                if not isinstance(raw_results, list):
+                    raw_results = [raw_results] if raw_results else []  # type: ignore[list-item]
+
                 for item in raw_results:
-                    if hasattr(item, 'text_content'):
+                    if isinstance(item, (bool, int, float)):
+                        cleaned_results.append(str(item))
+                    elif hasattr(item, 'text_content'):
                         # It's an Element (e.g., matched //h1 instead of //h1/text())
                         # Extract text content so it's readable in JSON
-                        cleaned_results.append(item.text_content().strip())
+                        cleaned_results.append(item.text_content().strip())  # type: ignore[union-attr]
                     else:
                         # It's already a string (e.g., matched //h1/text() or //a/@href)
                         cleaned_results.append(str(item).strip())
@@ -70,4 +75,4 @@ def fetch_with_selectors(url: str, selectors: dict[str, str]) -> dict[str, list]
         return extracted
     except Exception as e:
         print(f'Playwright or lxml error: {e}')
-        return {'error': f'An unexpected error occurred during extraction: {str(e)}'}
+        return {'error': [f'An unexpected error occurred during extraction: {str(e)}']}
