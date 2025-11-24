@@ -227,16 +227,14 @@ Reasoning: {validation_fail_reasoning}
         """Calls Gemini to analyze the page and extract structured data directly."""
         system_prompt = types.Content(parts=[types.Part(text=get_analysis_instructions())], role='user')
         user_prompt = self._build_user_prompt(request)
-        flexible_analysis_schema: dict[str, str | dict[str, str]] = {'type': 'ARRAY', 'items': {'type': 'OBJECT'}}
         api_retry = 3
         for _ in range(api_retry):
             try:
                 response = self.client.models.generate_content(
                     model=self.model_name,
                     contents=[system_prompt, user_prompt],
-                    generation_config=types.GenerationConfig(
+                    config=types.GenerateContentConfig(
                         response_mime_type='application/json',
-                        response_schema=flexible_analysis_schema,  # type: ignore[arg-type]
                     ),
                 )
                 raw_output = response.text
