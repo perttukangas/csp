@@ -240,6 +240,7 @@ Reasoning: {validation_fail_reasoning}
                     ),
                 )
                 raw_output = response.text
+                break
             except (GoogleAPICallError, ResourceExhausted, DeadlineExceeded) as api_error:
                 print(f'API call failed: {api_error}. Retrying after delay...')
                 time.sleep(2)
@@ -278,6 +279,7 @@ Reasoning: {validation_fail_reasoning}
                         response = self.client.models.generate_content(
                             model=self.model_name, contents=history, config=self.config
                         )
+                        break
                     except (GoogleAPICallError, ResourceExhausted, DeadlineExceeded) as api_error:
                         print(f'API call failed: {api_error}. Retrying after delay...')
                         time.sleep(2)
