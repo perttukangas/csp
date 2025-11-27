@@ -10,6 +10,7 @@ dependencies = [
     "lxml>=6.0.2",
     "pandas>=2.3.3",
     "google-genai>=1.45.0",
+    "google-api-core>=2.19.0",
     "lxml-html-clean>=0.4.3",
     "playwright>=1.48.0",
 ]
@@ -72,6 +73,11 @@ docstring-code-format = true
 [tool.ruff.lint]
 select = ["E", "F", "B", "I", "UP", "C90"]
 
+
+[tool.mypy]
+explicit_package_bases = true
+mypy_path = "$MYPY_CONFIG_FILE_DIR"
+namespace_packages = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
